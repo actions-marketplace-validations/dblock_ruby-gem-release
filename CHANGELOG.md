@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (Next)
+## 0.1.0 (2026/11/07)
 
 - [#2](https://github.com/dblock/ruby-gem-release/pull/2): Add reusable gem release workflow and version management Rake tasks - [@dblock](https://github.com/dblock).
 - [#5](https://github.com/dblock/ruby-gem-release/pull/5): Add a ruby release logo - [@dblock](https://github.com/dblock).
@@ -12,4 +12,3 @@
 - [#12](https://github.com/dblock/ruby-gem-release/pull/12): Explain release automation benefits and requirements, clarify version incrementing, simplify the caller example, and move configuration details out of README - [@dblock](https://github.com/dblock).
 - [#13](https://github.com/dblock/ruby-gem-release/pull/13): Add a manual project release caller using the standard workflow, with dry runs enabled by default - [@dblock](https://github.com/dblock).
 - [#14](https://github.com/dblock/ruby-gem-release/pull/14): Support owner-bound OIDC exchanges for first gem publication with pending trusted publishers - [@dblock](https://github.com/dblock).
-- Your contribution here.
