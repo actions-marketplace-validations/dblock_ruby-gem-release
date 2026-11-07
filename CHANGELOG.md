@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 (Next)
+
+- Your contribution here.
+
 ## 0.2.1 (2026/11/07)
 
 - [#17](https://github.com/dblock/ruby-gem-release/pull/17): Avoid extra blank lines when releasing an empty changelog section and document release adoption and collaborator permissions - [@dblock](https://github.com/dblock).
