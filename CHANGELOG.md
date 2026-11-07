@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 (Next)
+
+- Your contribution here.
+
 ## 0.2.0 (2026/11/07)
 
 - [#15](https://github.com/dblock/ruby-gem-release/pull/15): Add a Marketplace-ready composite action sharing Ruby release tasks, document action setup and publication, and pin workflow examples to `v0.2.0` - [@dblock](https://github.com/dblock).
