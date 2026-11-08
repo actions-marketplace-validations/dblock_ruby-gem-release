@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1 (Next)
+
+- Your contribution here.
+
 ## 0.4.0 (2026/11/08)
 
 - [#24](https://github.com/dblock/ruby-gem-release/pull/24): Reject empty release notes in both built-in changelog formats before writing release updates, ignoring placeholders, category headings, comments, and reference definitions - [@dblock](https://github.com/dblock).
