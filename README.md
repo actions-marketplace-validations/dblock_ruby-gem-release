@@ -53,7 +53,7 @@ permissions:
 
 jobs:
   release:
-    uses: dblock/ruby-gem-release/.github/workflows/release.yml@v0.2.2
+    uses: dblock/ruby-gem-release/.github/workflows/release.yml@v0.2.3
     with:
       ruby-version: '3.3'
       rubygems-owner: ${{ inputs.rubygems-owner }}
