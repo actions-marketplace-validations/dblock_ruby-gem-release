@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 (Next)
+
+- Your contribution here.
+
 ## 0.3.0 (2026/11/07)
 
 - [#22](https://github.com/dblock/ruby-gem-release/pull/22): Make the release timezone configurable with a UTC default, use Eastern Time for this project's releases, and prepare version 0.3.0 - [@dblock](https://github.com/dblock).
