@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2 (Next)
+
+- Your contribution here.
+
 ## 0.3.1 (2026/11/07)
 
 - [#23](https://github.com/dblock/ruby-gem-release/pull/23): Reject dirty checkouts after dependency installation and commit only staged release preparation changes, preventing generated Bundler artifacts and unrelated files from entering releases - [@dblock](https://github.com/dblock).
