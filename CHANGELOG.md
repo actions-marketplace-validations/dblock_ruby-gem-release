@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3 (Next)
+
+- Your contribution here.
+
 ## 0.2.2 (2026/11/08)
 
 - [#18](https://github.com/dblock/ruby-gem-release/pull/18): Update README release tags as part of the next development iteration - [@dblock](https://github.com/dblock).
