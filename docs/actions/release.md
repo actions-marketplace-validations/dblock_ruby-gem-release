@@ -15,7 +15,7 @@ Set these under the calling job's `with:` mapping. Only `ruby-version` is requir
 | `gemspec`        | String | Empty                                          | Specification path, defaulting to the only root gemspec. Missing or ambiguous specifications fail.                                     |
 | `rubygems-owner` | String | Empty                                          | Numeric RubyGems account ID required for a new gem's pending trusted publisher to create it.                                           |
 | `timezone`       | String | `UTC`                                          | Installed timezone identifier for the release calendar date and Git timestamp offsets.                                                 |
-| `validate`       | String | `bundle exec rake release:validate`            | Decide whether to proceed before editing files; emit `proceed=true` or `proceed=false` to `GITHUB_OUTPUT`.                             |
+| `validate`       | String | `bundle exec rake release:validate`            | Check release preconditions before edits; exit nonzero on failure.                                                                     |
 | `prepare`        | String | `bundle exec rake release:prepare`             | Prepare release files before version resolution and testing.                                                                           |
 | `test`           | String | `bundle exec rake`                             | Test prepared release files before publication.                                                                                        |
 | `publish`        | String | `bundle exec rake release:publish`             | Commit, build, tag, publish to RubyGems, push atomically, and create a GitHub Release through the configured callback.                 |
@@ -27,15 +27,13 @@ Set these under the calling job's `with:` mapping. Only `ruby-version` is requir
 
 Identity values must be nonempty and contain no line breaks. They change commit attribution, not authentication or push permissions.
 
-### Release Validation and Skipping
+### Release Validation
 
-The Validate Release step runs after context capture, before any preparation edits. Its default command invokes `tasks.validate`; the standard Ruby workflow checks for pending changelog notes. An empty section skips the release successfully, including when a version is selected. Missing or malformed headings, invalid comparison links, and missing or duplicate `Intridea` placeholders still fail. With no changelog, the standard workflow proceeds; custom changelog objects must implement `pending?` or use a custom `validate:` callback.
+Validation runs after context capture, before preparation edits. Empty pending notes fail unless the selected release already has a changelog heading, allowing repetition. Malformed content also fails. With no changelog, validation passes. Custom changelog objects implement `pending?` and `released?(version)` or supply a `validate:` callback.
 
-A custom `validate` command must append exactly one `proceed=true` or `proceed=false` line to `GITHUB_OUTPUT` and exit successfully. Missing, invalid, or duplicate decisions fail; a nonzero exit remains a failure even if it writes `proceed=false`. Commands receive a temporary output file whose validated decision is forwarded to the step output.
+A custom `validate` command must exit nonzero on invalid state; normal completion succeeds. Ruby callbacks raise on failure, and returning `false` also fails. No output protocol is required.
 
-When the decision is false, preparation, resolution, tests, authentication, publication, artifact upload, next development iteration preparation, and success notifications are skipped. The job succeeds, neither result callback runs, and the Actions summary records the skip. The reusable workflow and composite action expose a `skipped` output (`'true'` or `'false'`); it is not proof of publication when false.
-
-This changes the `validate` input from testing prepared files into a release decision before preparation. Move existing `validate: bundle exec ...` test overrides to `test:` and upgrade the gem and pinned interface together.
+A validation error fails the job, stops downstream release operations, and invokes failure handling after successful Ruby setup.
 
 ### Release Version
 
@@ -43,17 +41,17 @@ Set `version: '1.2.3'` under `with:` to select a release version instead of the 
 
 Expose a string `version` input in the caller's `workflow_dispatch` form and forward it with `version: ${{ inputs.version }}`. You can then choose it in GitHub's form or run `gh workflow run release.yml -f version=1.2.3`. No release is performed by adding this input.
 
-This changes the former assertion-only behavior. Custom preparation commands and callbacks retain control and must honor the selection; resolution rejects a mismatched prepared gemspec before publication. Custom version objects must implement `set!` when selecting a version. The former `RubyConstant#set` API is removed without an alias; use `set!`. Upgrade the gem and pinned interface together when adopting the new behavior.
+Custom preparation commands and callbacks must honor the selection; resolution rejects a mismatched prepared gemspec before publication. Custom version objects must implement `set!` when selecting a version. See [UPGRADING.md](../../UPGRADING.md) for migrations.
 
 ### Timezone
 
-Starting with version `0.3.0`, set `timezone: America/New_York` under `with:` to use Eastern Time, including daylight saving changes. Upgrade the gem and pinned workflow or action together before adding this input; earlier release tags do not expose it. UTC remains the default.
+Set `timezone: America/New_York` under `with:` to use Eastern Time, including daylight saving changes. UTC remains the default.
 
 The interfaces set `TZ` and capture the local calendar date once as `RELEASE_DATE`, preserving it across callbacks even if the release crosses midnight. Git commits retain their actual creation times with offsets in the selected timezone. GitHub and RubyGems generate their own publication timestamps; this input does not change those service timestamps.
 
 Identifiers must resolve to files under the runner's `/usr/share/zoneinfo` directory. Unknown identifiers, empty values, fixed-offset strings, and traversal paths fail before release preparation or publication. Use a named timezone rather than a fixed offset so daylight saving changes are handled correctly.
 
-The `publish` input replaces the former `github-release` input and controls the whole publication sequence. To disable only GitHub Release creation, set `hosting: nil` in the standard workflow or omit `github.publish!` from manual callbacks rather than disabling `publish`.
+To disable only GitHub Release creation, set `hosting: nil` in the standard workflow or omit `github.publish!` from manual callbacks rather than disabling `publish`.
 
 ### Success and Failure Callbacks
 
@@ -69,49 +67,50 @@ Authentication belongs to `release:publish`, which invokes the configured destin
 
 Authentication exports `RUBYGEMS_API_KEY`, `BUNDLE_GEM__PUSH_KEY`, and `GEM_HOST_API_KEY`; it does not create or modify `~/.gem/credentials`. Custom publication commands must inherit these variables rather than assume a credentials file or named key exists. See the [custom publication contract](../workflow/ruby_gems_credentials.md#custom-publication-commands).
 
-The caller needs `contents: write` for Git pushes and GitHub Releases, and `id-token: write` for RubyGems Trusted Publishing. Configure the `release` environment and RubyGems trusted publisher as described in [Usage](../../README.md#3-enable-trusted-publishing). No stored RubyGems API key is required.
+The caller needs `contents: write` for Git and hosting and `id-token: write` for RubyGems Trusted Publishing. Configure the `release` environment and publisher as described in [Usage](../../README.md#3-enable-trusted-publishing). No stored RubyGems API key is required.
 
-The base destination's authentication hook retains preconfigured credentials. Custom destinations can override it without adding or changing YAML steps; prepared-version checks also use the configured destination. A `publish` command override that bypasses `release:publish` must own authentication as well as publication. See [Registry Destinations](../destination.md).
+The base destination's authentication hook retains preconfigured credentials. Custom destinations can override it without adding or changing YAML steps. A `publish` command override that bypasses `release:publish` must own authentication as well as publication. See [Registry Destinations](../destination.md).
 
-The workflow uses the GitHub Actions token as `GH_TOKEN` during publication. Branch rules must permit its fast-forward pushes while retaining force-push and deletion restrictions.
+The workflow supplies `GH_TOKEN` during publication. Branch rules must permit fast-forward pushes while retaining force-push and deletion restrictions.
 
 ## Execution
 
-After `ruby/setup-ruby` installs dependencies, context capture requires a clean checkout before preparation: tracked/index changes and untracked non-ignored files fail with actionable paths. Ignored Bundler output is allowed; tracked dependency artifacts are not. Resolving the prepared version stages the trusted `prepare` command's outputs and records the index tree before validation. The publication callback refuses later working tree or index changes rather than staging unrelated files. Custom commands own their operations; wrap custom next development iteration edits in `git.stage_changes!` as shown in [Detailed Usage](../usage.md#custom-callbacks).
+After `ruby/setup-ruby` installs dependencies, context capture requires a clean checkout before preparation: tracked/index changes and untracked non-ignored files fail with actionable paths. Ignored Bundler output is allowed; tracked dependency artifacts are not. Resolving the prepared version stages the trusted `prepare` command's outputs and records the index tree before testing. The publication callback refuses later working tree or index changes rather than staging unrelated files. Custom commands own their operations; wrap custom next development iteration edits in `git.stage_changes!` as shown in [Detailed Usage](../usage.md#custom-callbacks).
 
-The job runs on `ubuntu-latest` in the `release` environment. It checks out full history, sets up Ruby with Bundler caching, captures release context, runs `validate`, and proceeds only when instructed. It then runs `prepare`, resolves the prepared version, runs `test`, runs `publish` including destination authentication, uploads available recovery artifacts, then runs `bump`. Ordinary failures prevent later callback phases; artifact uploading is attempted even after failure once validation permits release and the version is resolved.
+The job runs on `ubuntu-latest` in the `release` environment. After full checkout and Ruby setup, capture uses the current checkout and inputs. Commands always run and own their idempotence; there is no cross-run artifact discovery or state restoration. A checkpoint commits, builds, and tags locally; artifact preservation must succeed before `publish` and `bump`. Failures prevent later phases.
 
-Releases must run from the default branch at its current remote commit. Git checks the branch again before publication and pushing, rejects existing tags, and pushes the release commit and tag atomically. Concurrency is grouped by repository without canceling a running release.
+New releases require the current default-branch commit. Reruns can reuse matching release commits and tags without rewinding remote descendants. Git rejects conflicting tags and unrelated advancement. Concurrency is grouped by repository without canceling a running release.
 
 ## Command Environment
 
 Commands run through `bash -euo pipefail`. Overrides replace the corresponding phase and must perform its required operations; callback registration alone does not cause an overridden command to invoke a task.
 
-| Variable                          | Availability     | Meaning                                                                 |
-| ---                               | ---              | ---                                                                     |
-| `INPUT_VERSION`                   | All phases       | Optional selected release version.                                      |
-| `RELEASE_FAILURE_PHASE`           | Failure callback | Failed workflow step when available.                                    |
-| `RELEASE_STEP_ID`                 | Commands         | Current enclosing Actions step ID.                                      |
-| `RELEASE_STEPS`                   | Commands         | JSON snapshot of previously observed Actions steps.                     |
-| `RELEASE_STATE`                   | After capture    | Private invocation-specific state file for callback data.               |
-| `RELEASE_DIRECTORY`               | After capture    | Provider directory; maps to `RUNNER_TEMP` on Actions.                   |
-| `RELEASE_AUTHENTICATION`          | After resolution | Destination authentication strategy, or empty for existing credentials. |
-| `INPUT_GEMSPEC`                   | All phases       | Optional gemspec input.                                                 |
-| `RUBYGEMS_OWNER`                  | All phases       | Optional numeric RubyGems account ID for owner-bound authentication.    |
-| `GEMSPEC`                         | After capture    | Selected absolute gemspec path.                                         |
-| `RELEASE_PREVIOUS_VERSION`        | After capture    | Initial gemspec version, retained across callbacks.                     |
-| `RELEASE_DATE`                    | After capture    | Date captured once in the configured timezone, as `YYYY-MM-DD`.         |
-| `TZ`                              | All phases       | Configured timezone; defaults to `UTC`.                                 |
-| `RELEASE_INITIAL_COMMIT`          | After capture    | Checkout commit used for concurrency checks.                            |
-| `RELEASE_VERSION`                 | After resolution | Prepared version to publish.                                            |
-| `DEFAULT_BRANCH`                  | All phases       | Repository default branch.                                              |
-| `GIT_USER_NAME`, `GIT_USER_EMAIL` | All phases       | Configured checkout-local commit identity.                              |
-| `GH_TOKEN`                        | Publication      | GitHub Actions token for GitHub Release creation.                       |
+| Variable                          | Availability     | Meaning                                                                              |
+| ---                               | ---              | ---                                                                                  |
+| `INPUT_VERSION`                   | All phases       | Optional selected release version.                                                   |
+| `INPUT_GEMSPEC_PATH`              | All phases       | Optional gemspec path supplied by the caller.                                        |
+| `GEMSPEC_PATH`                    | After capture    | Selected absolute gemspec path.                                                      |
+| `GEMSPEC_VERSION`                 | After capture    | Gemspec version captured before preparation, retained across callbacks.              |
+| `SOURCE_REF`                      | Provider-neutral | Source Git ref; GitHub uses `GITHUB_REF` instead.                                    |
+| `SOURCE_COMMIT`                   | After capture    | Source commit hash captured before release preparation.                              |
+| `RELEASE_VERSION`                 | After resolution | Prepared version to publish.                                                         |
+| `RELEASE_DATE`                    | After capture    | Date captured once in the configured timezone, as `YYYY-MM-DD`.                      |
+| `RELEASE_DATA_DIR`                | After capture    | Artifacts and private task data; maps to `RUNNER_TEMP` on Actions, not the checkout. |
+| `RELEASE_STATE_FILE`              | After capture    | Private invocation-specific JSON file for callback data.                             |
+| `RELEASE_COMMAND`                 | Commands         | Configured shell command for the current phase.                                      |
+| `RELEASE_STEP_ID`                 | Commands         | Current enclosing Actions step ID.                                                   |
+| `RELEASE_STEPS_JSON`              | Commands         | JSON snapshot of previously observed Actions steps.                                  |
+| `RELEASE_FAILED_STEP_ID`          | Failure callback | Failed step or task ID, or `unknown`.                                                |
+| `RELEASE_AUTH_MODE`               | After resolution | Destination authentication strategy, or empty for existing credentials.              |
+| `DEFAULT_BRANCH`                  | All phases       | Repository default branch.                                                           |
+| `GIT_USER_NAME`, `GIT_USER_EMAIL` | All phases       | Configured checkout-local commit identity.                                           |
+| `RUBYGEMS_OWNER_ID`               | All phases       | Optional numeric RubyGems account ID for owner-bound authentication.                 |
+| `TZ`                              | All phases       | Configured timezone; defaults to `UTC`.                                              |
+| `SOURCE_DATE_EPOCH`               | After capture    | Source commit timestamp for reproducible packages, unless explicitly supplied.       |
+| `GH_TOKEN`                        | Publish          | GitHub Actions token for hosted releases.                                            |
 
 GitHub also supplies standard variables such as `GITHUB_REPOSITORY` and `RUNNER_TEMP`. See [Execution Context](../execution_context.md) for step, run, and state semantics, [`Tasks`](../tasks.md) for callbacks, and [`Workflow::Environment`](../workflow/environment.md) for capture and resolution methods.
 
 ## Recovery Artifacts
 
-The workflow preserves available `release.gem`, `release.json`, and `release.bundle` files from `RUNNER_TEMP` for 30 days, named `release-gem-VERSION-RUN_ID-RUN_ATTEMPT`. The manifest records the exact artifact checksum; the bundle contains the release commit and tag.
-
-Uploading happens after the publication callback, even if it fails. Runner loss during the callback can prevent preservation. RubyGems publication precedes the atomic push, leaving a recovery window if pushing fails. Verify remote state before retrying; never republish an accepted version or move a release tag. See [RELEASING.md](../../RELEASING.md#verify-and-recover).
+The workflow requires `release.gem`, its name/version/digest manifest `release.json`, and `release.bundle` to be uploaded before publication, retained for 30 days under `release-gem-VERSION-RUN_ID-RUN_ATTEMPT`. These support manual inspection, not automatic restoration. See [RELEASING.md](../../RELEASING.md#verify-and-recover).

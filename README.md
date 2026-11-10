@@ -26,7 +26,7 @@ RubyGemRelease::Workflow::RubyGem.new(
 ).install_tasks
 ```
 
-These defaults select the gemspec and repository, skip empty pending notes, prepare the changelog, publish to RubyGems and GitHub Releases, and increment the patch version for the next development iteration. Dates use UTC.
+These defaults select the gemspec and repository, reject empty pending notes, prepare the changelog, publish to RubyGems and GitHub Releases, and increment the patch version for the next development iteration. Dates use UTC.
 
 ### 2. Add the Release Workflow
 
@@ -53,7 +53,7 @@ permissions:
 
 jobs:
   release:
-    uses: dblock/ruby-gem-release/.github/workflows/release.yml@v0.4.0
+    uses: dblock/ruby-gem-release/.github/workflows/release.yml@v0.5.0
     with:
       ruby-version: '3.3'
       version: ${{ inputs.version }}

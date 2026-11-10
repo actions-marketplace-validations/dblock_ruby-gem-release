@@ -12,7 +12,7 @@ module RubyGemRelease
       attr_reader :version, :changelog, :package, :destination, :git, :hosting, :provider
 
       def initialize(version:, changelog:, provider: ExecutionProvider.current,
-                     package: Package::RubyGem.new(gemspec: provider.fetch('GEMSPEC', provider.fetch('INPUT_GEMSPEC', '')) || '', directory: provider.directory),
+                     package: Package::RubyGem.new(gemspec: provider.fetch('GEMSPEC_PATH', provider.fetch('INPUT_GEMSPEC_PATH', '')) || '', directory: provider.directory),
                      destination: Destination::RubyGems.new,
                      git: SourceControl::Git.new(directory: provider.directory), hosting: Hosting::GitHubRelease.new,
                      validate: nil, success: nil, failure: nil)
@@ -34,6 +34,14 @@ module RubyGemRelease
         end
       end
 
+      def checkpoint!(context)
+        prepare_publication(context.release)
+      end
+
+      def published?(release)
+        @package.respond_to?(:built?) && @package.built?(release) && @destination.published?(release, package: @package)
+      end
+
       private
 
       def install_callbacks(tasks)
@@ -48,7 +56,9 @@ module RubyGemRelease
       def validate_release(ctx)
         return @validate.call(ctx) if @validate
 
-        @changelog ? @changelog.pending? : true
+        return if @changelog.nil? || @changelog.released?(ctx.release.version) || @changelog.pending?
+
+        raise ArgumentError, 'Nothing to release: no pending changelog notes'
       end
 
       def prepare_release(release)
@@ -64,25 +74,33 @@ module RubyGemRelease
         @version.set!(version)
       end
 
-      def publish(release)
-        @destination.check_version!(name: @package.name, version: release.version)
+      def prepare_publication(release)
         @git.commit!(release)
         @package.build!(release)
         @git.tag!(release)
+      end
+
+      def publish(release)
+        prepare_publication(release)
         @destination.publish!(release, package: @package)
         @git.push!(release)
         @hosting&.publish!(release, package: @package)
       end
 
       def prepare_next(ctx)
-        next_release = nil
-        @git.stage_changes! do
-          next_release = ctx.release.with_next_version(@version.increment!)
-          @changelog&.prepare_next!(next_release)
-        end
+        next_release = stage_next!(ctx.release)
         @git.commit_next!(next_release)
         @git.push!
         ctx.record_next_version!(next_release.next_version)
+      end
+
+      def stage_next!(release)
+        next_release = nil
+        @git.stage_changes! do
+          next_release = release.with_next_version(@version.increment!(from: release.version))
+          @changelog&.prepare_next!(next_release)
+        end
+        next_release
       end
     end
   end

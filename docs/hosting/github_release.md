@@ -19,6 +19,8 @@ The optional `repository:` argument identifies the target as `'OWNER/REPO'`. It 
 
 ## Package
 
+`publish!` verifies existing metadata and every expected asset, updates differing titles, release status, and explicit notes, and uploads missing or changed assets with `--clobber`; matching outputs are no-ops. Unspecified platform-generated notes are retained. Assets without a server digest are downloaded and hashed. Invalid responses and duplicate asset names fail rather than being guessed.
+
 `package:` attaches the exact archive returned by [`Package::RubyGem#artifact`](../package/ruby_gem.md#artifact), with its package filename and verified digest, without rebuilding or manual copying.
 
 ## Artifacts
@@ -29,7 +31,7 @@ Without `package:`, `artifacts:` accepts existing file paths, defaulting to no a
 
 Install `gh` and authenticate using `GH_TOKEN` or its existing credentials. The workflow supplies the GitHub Actions token and requires the caller's `contents: write` permission.
 
-Failed commands raise without retries or overwriting existing releases. If package publication and the tag push succeeded, recover only the missing GitHub Release with the preserved artifact; see [RELEASING.md](../../RELEASING.md).
+Failed commands raise without automatic retries. Reruns verify existing outputs and reconcile missing or changed hosted metadata and assets; see [Verify and Recover](../../RELEASING.md#verify-and-recover).
 
 ## Workflow Command
 

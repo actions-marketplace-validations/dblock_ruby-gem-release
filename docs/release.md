@@ -4,11 +4,11 @@ An immutable version and date value available through [callback execution contex
 
 ## Version
 
-`release.version` is the selected version before preparation, or the initial gemspec version when no version is selected. Later phases use the prepared gemspec version. `release.previous_version` retains the initial version independently. The required constructor argument `version:` is a string.
+`release.version` is the selected version before preparation, or the initial gemspec version when no version is selected. Later phases use the prepared gemspec version. `release.gemspec_version` retains the initial version independently. The required constructor argument `version:` is a string.
 
-## Previous Version
+## Gemspec Version
 
-`release.previous_version` retains the initial gemspec version across both phases. It can equal the released version. The required constructor argument `previous_version:` is a string.
+`release.gemspec_version` retains the gemspec version captured at workflow start, before any version override or preparation. It can equal `release.version`; it does not identify the last published release. The required constructor argument `gemspec_version:` is a string.
 
 ## Next Development Iteration
 
@@ -30,4 +30,4 @@ The standard workflow records it after the next development iteration is committ
 
 ## With Next Development Iteration
 
-`release.with_next_version(version.increment!)` returns a new context containing the supplied version for the next development iteration, preserving every other field and leaving the original unchanged.
+`release.with_next_version(version.increment!(from: release.version))` returns a new context containing the next development version, preserving every other field and leaving the original unchanged.

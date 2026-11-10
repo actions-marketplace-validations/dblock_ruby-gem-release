@@ -28,7 +28,7 @@ inputs:
     description: Timezone for release dates and Git timestamps.
     default: UTC
   validate:
-    description: Command deciding whether to release; must write proceed=true or proceed=false to GITHUB_OUTPUT.
+    description: Command validating release preconditions; must exit nonzero on failure.
     default: bundle exec rake release:validate
   prepare:
     description: Command to prepare release files; INPUT_VERSION is the selected release version.
@@ -37,7 +37,7 @@ inputs:
     description: Command to test the prepared release.
     default: bundle exec rake
   publish:
-    description: Command to commit, build, tag, and publish the release.
+    description: Idempotent publication command; runs after recovery artifacts are preserved.
     default: bundle exec rake release:publish
   bump:
     description: Command to prepare, commit, and push the next development iteration.
@@ -48,11 +48,6 @@ inputs:
   failure:
     description: Command to run after a release job failure.
     default: bundle exec rake release:failure
-
-outputs:
-  skipped:
-    description: Whether validation successfully skipped the release.
-    value: ${{ steps.validate_release.outputs.proceed == 'false' }}
 
 runs:
   using: composite
@@ -66,26 +61,17 @@ runs:
       with:
         ruby-version: ${{ inputs.ruby-version }}
         bundler-cache: true
-    - name: Enable Release Failure Callback
-      id: enable_failure_callback
-      shell: bash
-      run: |
-        rm -f "$RUNNER_TEMP/ruby-gem-release-failure.json"
-        for name in RELEASE_STATE RELEASE_VERSION RELEASE_PREVIOUS_VERSION RELEASE_DATE RELEASE_INITIAL_COMMIT RELEASE_FAILURE_PHASE RELEASE_AUTHENTICATION RELEASE_DIRECTORY; do
-          printf '%s=\n' "$name" >> "$GITHUB_ENV"
-        done
-        echo 'enabled=true' >> "$GITHUB_OUTPUT"
     - name: Configure Release Inputs
       id: configure_release_inputs
       shell: bash
       env:
         RELEASE_STEP_ID: configure_release_inputs
         INPUT_VERSION: ${{ inputs.version }}
-        INPUT_GEMSPEC: ${{ inputs.gemspec }}
+        INPUT_GEMSPEC_PATH: ${{ inputs.gemspec }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         GIT_USER_NAME: ${{ inputs.git-user-name }}
         GIT_USER_EMAIL: ${{ inputs.git-user-email }}
-        RUBYGEMS_OWNER: ${{ inputs.rubygems-owner }}
+        RUBYGEMS_OWNER_ID: ${{ inputs.rubygems-owner }}
         TZ: ${{ inputs.timezone }}
       run: bundle exec rake release:workflow:configure
     - name: Capture Release Context
@@ -98,60 +84,40 @@ runs:
       id: validate_release
       shell: bash
       env:
-        COMMAND: ${{ inputs.validate }}
+        RELEASE_COMMAND: ${{ inputs.validate }}
         RELEASE_STEP_ID: validate_release
-        RELEASE_STEPS: ${{ toJSON(steps) }}
-      run: |
-        output=$(mktemp "$RUNNER_TEMP/release-validation.XXXXXX")
-        trap 'rm -f "$output"' EXIT
-        GITHUB_OUTPUT="$output" bash -euo pipefail -c "$COMMAND"
-        proceed=$(sed -n 's/^proceed=//p' "$output")
-        if [[ $(grep -c '^proceed=' "$output") != 1 || ( "$proceed" != true && "$proceed" != false ) ]]; then
-          echo 'Validation must output exactly one proceed=true or proceed=false decision.' >&2
-          exit 1
-        fi
-        if [[ "$proceed" == false ]]; then
-          echo 'Release skipped: nothing to release.' >> "$GITHUB_STEP_SUMMARY"
-        fi
-        printf 'proceed=%s\n' "$proceed" >> "$GITHUB_OUTPUT"
+        RELEASE_STEPS_JSON: ${{ toJSON(steps) }}
+      run: bash -euo pipefail -c "$RELEASE_COMMAND"
     - name: Prepare Release
       id: prepare_release
-      if: ${{ steps.validate_release.outputs.proceed == 'true' }}
       shell: bash
       env:
-        COMMAND: ${{ inputs.prepare }}
+        RELEASE_COMMAND: ${{ inputs.prepare }}
         RELEASE_STEP_ID: prepare_release
-        RELEASE_STEPS: ${{ toJSON(steps) }}
-      run: bash -euo pipefail -c "$COMMAND"
+        RELEASE_STEPS_JSON: ${{ toJSON(steps) }}
+      run: bash -euo pipefail -c "$RELEASE_COMMAND"
     - name: Resolve Prepared Version
       id: resolve_prepared_version
-      if: ${{ steps.validate_release.outputs.proceed == 'true' }}
       shell: bash
       env:
         RELEASE_STEP_ID: resolve_prepared_version
       run: bundle exec rake release:workflow:resolve
     - name: Test Release
       id: test_release
-      if: ${{ steps.validate_release.outputs.proceed == 'true' }}
       shell: bash
       env:
-        COMMAND: ${{ inputs.test }}
+        RELEASE_COMMAND: ${{ inputs.test }}
         RELEASE_STEP_ID: test_release
-        RELEASE_STEPS: ${{ toJSON(steps) }}
-      run: bash -euo pipefail -c "$COMMAND"
-    - name: Publish Release
-      id: publish_release
-      if: ${{ steps.validate_release.outputs.proceed == 'true' }}
+        RELEASE_STEPS_JSON: ${{ toJSON(steps) }}
+      run: bash -euo pipefail -c "$RELEASE_COMMAND"
+    - name: Checkpoint Release
+      id: checkpoint_release
       shell: bash
       env:
-        GH_TOKEN: ${{ github.token }}
-        COMMAND: ${{ inputs.publish }}
-        RELEASE_STEP_ID: publish_release
-        RELEASE_STEPS: ${{ toJSON(steps) }}
-      run: bash -euo pipefail -c "$COMMAND"
+        RELEASE_STEP_ID: checkpoint_release
+      run: bundle exec rake release:workflow:checkpoint
     - name: Preserve Release Artifacts
       id: preserve_release_artifacts
-      if: ${{ always() && steps.validate_release.outputs.proceed == 'true' && env.RELEASE_VERSION != '' }}
       uses: actions/upload-artifact@v7
       with:
         name: release-gem-${{ env.RELEASE_VERSION }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -159,39 +125,47 @@ runs:
           ${{ runner.temp }}/release.gem
           ${{ runner.temp }}/release.json
           ${{ runner.temp }}/release.bundle
-        if-no-files-found: warn
+        if-no-files-found: error
         retention-days: 30
+    - name: Publish Release
+      id: publish_release
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RELEASE_COMMAND: ${{ inputs.publish }}
+        RELEASE_STEP_ID: publish_release
+        RELEASE_STEPS_JSON: ${{ toJSON(steps) }}
+      run: bash -euo pipefail -c "$RELEASE_COMMAND"
     - name: Prepare Next Development Iteration
       id: prepare_next_development_iteration
-      if: ${{ steps.validate_release.outputs.proceed == 'true' }}
       shell: bash
       env:
-        COMMAND: ${{ inputs.bump }}
+        RELEASE_COMMAND: ${{ inputs.bump }}
         RELEASE_STEP_ID: prepare_next_development_iteration
-        RELEASE_STEPS: ${{ toJSON(steps) }}
-      run: bash -euo pipefail -c "$COMMAND"
+        RELEASE_STEPS_JSON: ${{ toJSON(steps) }}
+      run: bash -euo pipefail -c "$RELEASE_COMMAND"
     - name: Run Release Success Callback
       id: release_success_callback
-      if: ${{ success() && steps.validate_release.outputs.proceed == 'true' }}
+      if: ${{ success() }}
       shell: bash
       env:
-        COMMAND: ${{ inputs.success }}
+        RELEASE_COMMAND: ${{ inputs.success }}
         RELEASE_STEP_ID: release_success_callback
-        RELEASE_STEPS: ${{ toJSON(steps) }}
-      run: bash -euo pipefail -c "$COMMAND"
+        RELEASE_STEPS_JSON: ${{ toJSON(steps) }}
+      run: bash -euo pipefail -c "$RELEASE_COMMAND"
     - name: Determine Release Failure Phase
       id: determine_release_failure_phase
-      if: ${{ failure() && steps.enable_failure_callback.outcome == 'success' }}
+      if: ${{ failure() && steps.setup_ruby.outcome == 'success' }}
       shell: bash
       env:
-        RELEASE_STEPS: ${{ toJSON(steps) }}
+        RELEASE_STEPS_JSON: ${{ toJSON(steps) }}
       run: bundle exec rake release:workflow:failure_phase
     - name: Run Release Failure Callback
       id: release_failure_callback
-      if: ${{ failure() && steps.enable_failure_callback.outcome == 'success' }}
+      if: ${{ failure() && steps.setup_ruby.outcome == 'success' }}
       shell: bash
       env:
-        COMMAND: ${{ inputs.failure }}
+        RELEASE_COMMAND: ${{ inputs.failure }}
         RELEASE_STEP_ID: release_failure_callback
-        RELEASE_STEPS: ${{ toJSON(steps) }}
-      run: bash -euo pipefail -c "$COMMAND"
+        RELEASE_STEPS_JSON: ${{ toJSON(steps) }}
+      run: bash -euo pipefail -c "$RELEASE_COMMAND"

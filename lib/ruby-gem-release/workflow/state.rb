@@ -8,11 +8,9 @@ require_relative '../semantic_release/decision'
 module RubyGemRelease
   module Workflow
     class State
-      SCHEMAS = { 1 => %w[next_version schema_version].freeze, 2 => %w[analysis next_version schema_version].freeze }.freeze
-
       def self.create!(directory:)
         file = Tempfile.create(['ruby-gem-release-state-', '.json'], directory)
-        file.write(JSON.generate('schema_version' => 2, 'next_version' => nil, 'analysis' => nil))
+        file.write(JSON.generate('next_version' => nil, 'analysis' => nil))
         file.path
       ensure
         file&.close
@@ -44,7 +42,7 @@ module RubyGemRelease
         raise ArgumentError, 'semantic analysis is already recorded' if analysis
 
         if @path
-          persist(attributes.merge('schema_version' => 2, 'analysis' => decision.to_h))
+          persist(attributes.merge('analysis' => decision.to_h))
         else
           @analysis = decision
         end
@@ -69,7 +67,7 @@ module RubyGemRelease
 
       def read_state
         values = JSON.parse(File.read(@path))
-        valid = values.is_a?(Hash) && SCHEMAS[values['schema_version']] == values.keys.sort
+        valid = values.is_a?(Hash) && values.keys.sort == %w[analysis next_version]
         raise ArgumentError, 'unsupported release state' unless valid
 
         validate_version(values['next_version']) unless values['next_version'].nil?

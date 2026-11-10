@@ -13,13 +13,13 @@ module RubyGemRelease
       end
 
       def self.steps(environment: ENV)
-        attributes = JSON.parse(environment.fetch('RELEASE_STEPS', '{}'))
+        attributes = JSON.parse(environment.fetch('RELEASE_STEPS_JSON', '{}'))
         raise ArgumentError, 'release steps must be an object' unless attributes.is_a?(Hash)
 
         attributes.to_h do |id, values|
           raise ArgumentError, 'release step must be an object' unless values.is_a?(Hash)
 
-          [id.freeze, Step.new(id: id, outcome: values['outcome'], conclusion: values['conclusion'], outputs: values.fetch('outputs', {}))]
+          [id.freeze, Step.new(id: id, outcome: values['outcome'], conclusion: values['conclusion'])]
         end.freeze
       end
 

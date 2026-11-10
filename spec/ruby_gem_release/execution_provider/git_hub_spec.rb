@@ -14,14 +14,13 @@ RSpec.describe RubyGemRelease::ExecutionProvider::GitHub do
 
   it 'exports values to subsequent steps and the current process environment' do
     provider.export('RELEASE_VERSION' => '1.2.3')
-    provider.output('proceed' => 'false')
     expect(File.read(environment.fetch('GITHUB_ENV'))).to eq("RELEASE_VERSION=1.2.3\n")
-    expect(File.read(environment.fetch('GITHUB_OUTPUT'))).to eq("proceed=false\n")
+    expect(File).not_to exist(environment.fetch('GITHUB_OUTPUT'))
     expect(environment.fetch('RELEASE_VERSION')).to eq('1.2.3')
   end
 
   it 'uses original failures rather than conclusions when selecting failed steps' do
-    environment['RELEASE_STEPS'] = JSON.generate(
+    environment['RELEASE_STEPS_JSON'] = JSON.generate(
       'continued' => { 'outcome' => 'failure', 'conclusion' => 'success' },
       'skipped' => { 'outcome' => 'skipped', 'conclusion' => 'skipped' }
     )

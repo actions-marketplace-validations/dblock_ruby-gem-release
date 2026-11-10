@@ -5,16 +5,16 @@ require 'ruby-gem-release/workflow/semantic_ruby_gem'
 
 RSpec.describe RubyGemRelease::Workflow::SemanticRubyGem do
   let(:values) do
-    { 'INPUT_VERSION' => '', 'RELEASE_INITIAL_COMMIT' => 'a' * 40, 'RELEASE_PREVIOUS_VERSION' => '9.9.9',
+    { 'INPUT_VERSION' => '', 'SOURCE_COMMIT' => 'a' * 40, 'GEMSPEC_VERSION' => '9.9.9',
       'RELEASE_VERSION' => '1.3.0', 'RELEASE_DATE' => '2026-11-09' }
   end
   let(:provider) { RubyGemRelease::ExecutionProvider.new(environment: values) }
   let(:components) do
     {
-      version: instance_double(RubyGemRelease::Version::RubyConstant, set!: nil, increment!: '1.3.1'),
+      version: instance_double(RubyGemRelease::Version::RubyConstant, set!: nil, increment!: '1.3.1', next_version: '1.3.1'),
       git: instance_double(RubyGemRelease::SourceControl::Git, commit!: nil, tag!: nil, push!: nil, commit_next!: nil),
-      package: instance_double(RubyGemRelease::Package::RubyGem, name: 'example', build!: nil),
-      destination: instance_double(RubyGemRelease::Destination, authenticate!: nil, check_version!: nil, publish!: nil),
+      package: instance_double(RubyGemRelease::Package::RubyGem, build!: nil, built?: false),
+      destination: instance_double(RubyGemRelease::Destination, authenticate!: nil, publish!: nil),
       changelog: instance_double(RubyGemRelease::Changelog::Generated, release!: nil, prepare_next!: nil)
     }
   end
@@ -50,10 +50,10 @@ RSpec.describe RubyGemRelease::Workflow::SemanticRubyGem do
     invoke('validate', 'prepare', 'publish', 'bump', 'success')
     expect(semantic).to have_received(:analyze).once
     expect(components.fetch(:version)).to have_received(:set!).with('1.3.0')
-    expect(components.fetch(:changelog)).to have_received(:release!).with(have_attributes(version: '1.3.0', previous_version: '9.9.9', notes: decision.notes))
+    expect(components.fetch(:changelog)).to have_received(:release!).with(have_attributes(version: '1.3.0', gemspec_version: '9.9.9', notes: decision.notes))
     expect(components.fetch(:version)).not_to have_received(:increment!)
     expect(components.fetch(:git)).not_to have_received(:commit_next!)
-    expect(received).to have_attributes(analysis: have_attributes(version: '1.3.0'), release: have_attributes(version: '1.3.0', previous_version: '9.9.9', next_version: nil))
+    expect(received).to have_attributes(analysis: have_attributes(version: '1.3.0'), release: have_attributes(version: '1.3.0', gemspec_version: '9.9.9', next_version: nil))
   end
 
   it 'optionally bumps and records the next development version without replacing analysis' do
@@ -65,15 +65,13 @@ RSpec.describe RubyGemRelease::Workflow::SemanticRubyGem do
     expect(received.analysis.to_h).to eq(decision.to_h)
   end
 
-  it 'skips without consulting handwritten notes and blocks downstream operations on a no-release decision' do
+  it 'rejects a no-release decision without consulting handwritten notes or invoking downstream operations' do
     skipped = RubyGemRelease::SemanticRelease::Decision.new(head: 'a' * 40, last_release: nil, commits: [], release_type: nil, version: nil, notes: nil)
     allow(semantic).to receive(:analyze).and_return(skipped)
     install
-    invoke('validate')
-    expect(provider.outputs).to eq('proceed' => 'false')
+    expect { invoke('validate') }.to raise_error(ArgumentError, /Nothing to release/)
     Rake::Task['release:validate'].reenable
-    invoke('validate')
-    expect(provider.outputs).to eq('proceed' => 'false')
+    expect { invoke('validate') }.to raise_error(ArgumentError, /Nothing to release/)
     expect(semantic).to have_received(:analyze).once
     %w[prepare publish bump success].each do |task|
       expect { invoke(task) }.to raise_error(ArgumentError, /semantic/)
@@ -89,7 +87,7 @@ RSpec.describe RubyGemRelease::Workflow::SemanticRubyGem do
     invoke('validate')
     [
       ['RELEASE_VERSION', '1.3.1', /differs/],
-      ['RELEASE_INITIAL_COMMIT', 'c' * 40, /another commit/],
+      ['SOURCE_COMMIT', 'c' * 40, /another commit/],
       ['INPUT_VERSION', '2.0.0', /explicit version changed/]
     ].each do |key, changed, message|
       original = values[key]
@@ -108,7 +106,7 @@ RSpec.describe RubyGemRelease::Workflow::SemanticRubyGem do
     Dir.mktmpdir do |directory|
       path = File.join(directory, 'state.json')
       File.write(path, '{')
-      values['RELEASE_STATE'] = path
+      values['RELEASE_STATE_FILE'] = path
       invoke('failure')
       expect(received.context.analysis).to be_nil
       expect(received.context.release).to have_attributes(version: '1.3.0')

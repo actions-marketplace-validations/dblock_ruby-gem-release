@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.5.0 (Next)
+## 0.5.1 (Next)
+
+- Your contribution here.
+
+## 0.5.0 (2026/11/10)
 
 - [#28](https://github.com/dblock/ruby-gem-release/pull/28): Add success callbacks and structured failure callbacks with captured Ruby exceptions to both Actions interfaces - [@dblock](https://github.com/dblock).
 - [#29](https://github.com/dblock/ruby-gem-release/pull/29): Add release validation callbacks and successful skipping for empty pending notes, rename the prepared-release test command input from `validate` to `test` (breaking change), and document migration in [UPGRADING.md](UPGRADING.md) - [@dblock](https://github.com/dblock).
@@ -13,7 +17,15 @@
 - [#38](https://github.com/dblock/ruby-gem-release/pull/38): Speed up release tests by separating focused orchestration coverage from real-process consumer smoke tests and avoiding duplicate source and installed integration runs in CI - [@dblock](https://github.com/dblock).
 - [#37](https://github.com/dblock/ruby-gem-release/pull/37): Add opt-in semantic releases with reachable-tag history, configurable Conventional Commits rules and versions, persisted immutable decisions, generated notes and changelog files, and optional development bumps - [@dblock](https://github.com/dblock).
 - [#39](https://github.com/dblock/ruby-gem-release/pull/39): Preserve configured packages during context capture, share workflow installation and coherent state snapshots, and streamline release and migration documentation - [@dblock](https://github.com/dblock).
-- Your contribution here.
+- [#40](https://github.com/dblock/ruby-gem-release/pull/40): Make release tasks independently idempotent with source-commit timestamps, checksum-verified publication, reusable Git refs, and replaceable hosted notes/assets; fail empty-release validation and remove the decision-output protocol (breaking change) - [@dblock](https://github.com/dblock).
+- [#41](https://github.com/dblock/ruby-gem-release/pull/41): Isolate release tests from inherited release context so this project's self-release can run its test suite - [@dblock](https://github.com/dblock).
+- [#42](https://github.com/dblock/ruby-gem-release/pull/42): Standardize environment names into consistent input, gemspec, source, release, and registry families, and rename `release.previous_version` and its constructor keyword to `gemspec_version` to distinguish the captured gemspec version from release history (breaking change) - [@dblock](https://github.com/dblock).
+- [#43](https://github.com/dblock/ruby-gem-release/pull/43): Remove unused output-writing, strict availability, and Git/hosting readback methods and legacy state support; report failures from one coherent state snapshot (breaking change) - [@dblock](https://github.com/dblock).
+- [#44](https://github.com/dblock/ruby-gem-release/pull/44): Share local commit, build, and tag preparation between artifact checkpoints and publication while preserving independent, idempotent publication - [@dblock](https://github.com/dblock).
+- [#45](https://github.com/dblock/ruby-gem-release/pull/45): Remove the unused state format version and validate only invocation-local analysis and next-version fields - [@dblock](https://github.com/dblock).
+- [#47](https://github.com/dblock/ruby-gem-release/pull/47): Remove obsolete step-output parsing, registry lookup instrumentation, package name access, and the unused release argument from Git branch checks; verify custom registry publication by archive identity instead of lookup counts (breaking change) - [@dblock](https://github.com/dblock).
+- [#46](https://github.com/dblock/ruby-gem-release/pull/46): Correct rerun and preparation-order documentation, remove obsolete migration notes from reference pages, and keep upgrade guidance in the migration guide - [@dblock](https://github.com/dblock).
+- [#48](https://github.com/dblock/ruby-gem-release/pull/48): Update this project's action and reusable workflow pins in every Markdown file under `docs/`, alongside README, to the released tag during the next development iteration - [@dblock](https://github.com/dblock).
 
 ## 0.4.0 (2026/11/08)
 

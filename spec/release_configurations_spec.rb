@@ -11,9 +11,9 @@ RSpec.describe 'Documented release configurations' do
   let(:version) { RubyGemRelease::Version::RubyConstant.new(path: 'lib/example/version.rb', constant: 'VERSION') }
   let(:objects) do
     {
-      git: instance_double(RubyGemRelease::SourceControl::Git, check_tag!: nil, commit!: nil, tag!: nil, push!: nil, commit_next!: nil),
-      package: instance_double(RubyGemRelease::Package::RubyGem, name: 'example', build!: nil),
-      destination: instance_double(RubyGemRelease::Destination::RubyGems, authentication: nil, authenticate!: nil, check_version!: nil, publish!: nil),
+      git: instance_double(RubyGemRelease::SourceControl::Git, commit!: nil, tag!: nil, push!: nil, commit_next!: nil),
+      package: instance_double(RubyGemRelease::Package::RubyGem, build!: nil, built?: false),
+      destination: instance_double(RubyGemRelease::Destination::RubyGems, authentication: nil, authenticate!: nil, publish!: nil),
       hosting: instance_double(RubyGemRelease::Hosting::GitHubRelease, publish!: nil)
     }
   end
@@ -23,7 +23,7 @@ RSpec.describe 'Documented release configurations' do
     environment = ENV.to_h
     ENV.keys.grep(/\ARELEASE_/).each { |key| ENV.delete(key) }
     %w[GITHUB_ACTIONS GITHUB_OUTPUT].each { |key| ENV.delete(key) }
-    ENV.update('INPUT_VERSION' => '', 'RELEASE_VERSION' => '0.1.0', 'RELEASE_PREVIOUS_VERSION' => '0.1.0', 'RELEASE_DATE' => '2026-11-09')
+    ENV.update('INPUT_VERSION' => '', 'RELEASE_VERSION' => '0.1.0', 'GEMSPEC_VERSION' => '0.1.0', 'RELEASE_DATE' => '2026-11-09')
     Rake.application = Rake::Application.new
     Dir.mktmpdir { |directory| Dir.chdir(directory) { example.run } }
   ensure
@@ -54,7 +54,7 @@ RSpec.describe 'Documented release configurations' do
         expected = selection.empty? ? '0.1.0' : selection
         next_version = selection.empty? ? '0.1.1' : '2.0.1'
         %w[validate prepare workflow:resolve publish bump].each { |task| Rake::Task["release:#{task}"].invoke }
-        expect(objects.fetch(:package)).to have_received(:build!).with(have_attributes(version: expected, previous_version: '0.1.0', date: Date.new(2026, 11, 9)))
+        expect(objects.fetch(:package)).to have_received(:build!).with(have_attributes(version: expected, gemspec_version: '0.1.0', date: Date.new(2026, 11, 9)))
         expect(objects.fetch(:destination)).to have_received(:publish!).with(have_attributes(version: expected), package: objects.fetch(:package))
         expect(objects.fetch(:git)).to have_received(:commit_next!).with(have_attributes(version: expected, next_version: next_version))
         expect(version.read).to eq(next_version)

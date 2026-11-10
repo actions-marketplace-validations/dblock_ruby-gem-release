@@ -9,8 +9,8 @@ RSpec.describe RubyGemRelease::Destination::RubyGems do
   let(:directory) { Dir.mktmpdir }
   let(:artifacts) { File.join(directory, 'artifacts') }
   let(:package) { RubyGemRelease::Package::RubyGem.new(gemspec: 'fixture.gemspec', directory: artifacts) }
-  let(:release) { RubyGemRelease::Release.new(version: '1.2.3', previous_version: '1.2.3', date: Date.today) }
-  let(:response) { instance_double(Net::HTTPResponse, code: '404') }
+  let(:release) { RubyGemRelease::Release.new(version: '1.2.3', gemspec_version: '1.2.3', date: Date.today) }
+  let(:response) { instance_double(Net::HTTPResponse, code: '404', body: '{}') }
 
   around do |example|
     Dir.chdir(directory) { example.run }
@@ -43,42 +43,51 @@ RSpec.describe RubyGemRelease::Destination::RubyGems do
     expect(Open3).to have_received(:capture3).once
   end
 
-  it 'accepts only an unpublished version' do
-    expect { described_class.new.check_version!(name: 'release-fixture', version: '1.2.3') }.not_to raise_error
-  end
-
-  it 'rejects an existing version without building or uploading' do
-    allow(response).to receive(:code).and_return('200')
-    expect { described_class.new.check_version!(name: 'release-fixture', version: '1.2.3') }.to raise_error(/release-fixture 1.2.3.*already published.*recovery/)
-    expect(File).not_to exist(artifacts)
-    expect(Net::HTTP).to have_received(:start).once
-  end
-
   it 'rejects unexpected responses rather than treating them as missing versions' do
+    package.build!(release)
+    allow(Open3).to receive(:capture3).and_raise('Unexpected uploader')
     %w[301 401 429 503].each do |code|
       allow(response).to receive(:code).and_return(code)
-      expect { described_class.new.check_version!(name: 'release-fixture', version: '1.2.3') }.to raise_error(/Cannot check RubyGems.*HTTP #{code}/)
+      expect { described_class.new.publish!(release, package: package) }.to raise_error(/Cannot verify RubyGems publication.*HTTP #{code}/)
     end
+    expect(Open3).not_to have_received(:capture3)
   end
 
   it 'stops on connection and timeout failures without retrying' do
+    package.build!(release)
+    allow(Open3).to receive(:capture3).and_raise('Unexpected uploader')
     [Net::OpenTimeout, SocketError, OpenSSL::SSL::SSLError].each do |error|
       allow(Net::HTTP).to receive(:start).and_raise(error, 'unavailable')
-      expect { described_class.new.check_version!(name: 'release-fixture', version: '1.2.3') }.to raise_error(/Cannot check RubyGems.*verify connectivity/)
+      expect { described_class.new.publish!(release, package: package) }.to raise_error(/Cannot check RubyGems.*verify connectivity/)
     end
     expect(Net::HTTP).to have_received(:start).exactly(3).times
-  end
-
-  it 'rejects invalid names before making a registry request' do
-    expect { described_class.new.check_version!(name: '../other', version: '1.2.3') }.to raise_error(/Invalid package name/)
-    expect(Net::HTTP).not_to have_received(:start)
+    expect(Open3).not_to have_received(:capture3)
   end
 
   it 'refuses to upload a built artifact that has already been published' do
     package.build!(release)
     allow(response).to receive(:code).and_return('200')
     allow(Open3).to receive(:capture3).and_raise('Unexpected uploader')
-    expect { described_class.new.publish!(release, package: package) }.to raise_error(/already published/)
+    expect { described_class.new.publish!(release, package: package) }.to raise_error(/checksum differs or is unavailable/)
+    expect(Open3).not_to have_received(:capture3)
+  end
+
+  it 'does not upload again when the registry proves that the exact archive is published' do
+    path = package.build!(release)
+    allow(response).to receive_messages(code: '200', body: JSON.generate('sha' => Digest::SHA256.file(path).hexdigest))
+    allow(Open3).to receive(:capture3).and_raise('Unexpected uploader')
+    described_class.new.publish!(release, package: package)
+    expect(Open3).not_to have_received(:capture3)
+  end
+
+  it 'refuses a different published checksum or malformed readback without uploading' do
+    package.build!(release)
+    allow(response).to receive(:code).and_return('200')
+    allow(Open3).to receive(:capture3).and_raise('Unexpected uploader')
+    allow(response).to receive(:body).and_return(JSON.generate('sha' => '0' * 64))
+    expect { described_class.new.publish!(release, package: package) }.to raise_error(/checksum differs/)
+    allow(response).to receive(:body).and_return('invalid')
+    expect { described_class.new.publish!(release, package: package) }.to raise_error(JSON::ParserError)
     expect(Open3).not_to have_received(:capture3)
   end
 
@@ -104,5 +113,16 @@ RSpec.describe RubyGemRelease::Destination::RubyGems do
     allow(Open3).to receive(:capture3).with(Gem.ruby, '-S', 'gem', 'push', path).and_return(['', 'upload failed', status])
     expect { described_class.new.publish!(release, package: package) }.to raise_error(/Destination command failed.*upload failed/)
     expect(Open3).to have_received(:capture3).once
+  end
+
+  it 'accepts a failed push only when readback proves the exact archive was published' do
+    path = package.build!(release)
+    allow(response).to receive(:code).and_return('404', '200')
+    allow(response).to receive(:body).and_return(JSON.generate('sha' => Digest::SHA256.file(path).hexdigest))
+    allow(Open3).to receive(:capture3).with(Gem.ruby, '-S', 'gem', 'push', path)
+                                      .and_return(['', 'version already published', instance_double(Process::Status, success?: false)])
+    expect { described_class.new.publish!(release, package: package) }.not_to raise_error
+    expect(Open3).to have_received(:capture3).once
+    expect(Net::HTTP).to have_received(:start).twice
   end
 end

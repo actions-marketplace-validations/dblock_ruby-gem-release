@@ -6,7 +6,7 @@ require 'tmpdir'
 
 RSpec.describe RubyGemRelease::Changelog::Generated do
   let(:release) do
-    RubyGemRelease::Release.new(version: '1.2.3', previous_version: '9.0.0', date: Date.new(2026, 11, 9),
+    RubyGemRelease::Release.new(version: '1.2.3', gemspec_version: '9.0.0', date: Date.new(2026, 11, 9),
                                 notes: "### Features\n\n- Add an endpoint.")
   end
 
@@ -31,12 +31,15 @@ RSpec.describe RubyGemRelease::Changelog::Generated do
     expect(content).to start_with("#{prefix}## 1.2.3 (2026/11/09)\r\n")
     expect(content).to end_with(history)
     expect(content).not_to match(/(?<!\r)\n/)
-    expect { described_class.new.release!(release) }.to raise_error(ArgumentError, /already exists/)
+    described_class.new.release!(release)
+    expect(File.read('CHANGELOG.md')).to eq(content)
+    conflicting = RubyGemRelease::Release.new(version: release.version, gemspec_version: release.gemspec_version, date: release.date, notes: 'Different notes')
+    expect { described_class.new.release!(conflicting) }.to raise_error(ArgumentError, /notes differ/)
   end
 
   it 'rejects missing or content-free notes before writing a file' do
     [nil, '', "### Features\n\n<!-- comment -->"].each do |notes|
-      invalid = RubyGemRelease::Release.new(version: '1.2.3', previous_version: '1.2.3', date: release.date, notes: notes)
+      invalid = RubyGemRelease::Release.new(version: '1.2.3', gemspec_version: '1.2.3', date: release.date, notes: notes)
       expect { described_class.new.release!(invalid) }.to raise_error(ArgumentError)
     end
     expect(File).not_to exist('CHANGELOG.md')
