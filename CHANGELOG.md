@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1 (Next)
+
+- Your contribution here.
+
 ## 0.5.0 (2026/11/10)
 
 - [#28](https://github.com/dblock/ruby-gem-release/pull/28): Add success callbacks and structured failure callbacks with captured Ruby exceptions to both Actions interfaces - [@dblock](https://github.com/dblock).
