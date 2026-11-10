@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0 (Next)
+## 0.5.0 (2026/11/10)
 
 - [#28](https://github.com/dblock/ruby-gem-release/pull/28): Add success callbacks and structured failure callbacks with captured Ruby exceptions to both Actions interfaces - [@dblock](https://github.com/dblock).
 - [#29](https://github.com/dblock/ruby-gem-release/pull/29): Add release validation callbacks and successful skipping for empty pending notes, rename the prepared-release test command input from `validate` to `test` (breaking change), and document migration in [UPGRADING.md](UPGRADING.md) - [@dblock](https://github.com/dblock).
@@ -22,7 +22,6 @@
 - [#47](https://github.com/dblock/ruby-gem-release/pull/47): Remove obsolete step-output parsing, registry lookup instrumentation, package name access, and the unused release argument from Git branch checks; verify custom registry publication by archive identity instead of lookup counts (breaking change) - [@dblock](https://github.com/dblock).
 - [#46](https://github.com/dblock/ruby-gem-release/pull/46): Correct rerun and preparation-order documentation, remove obsolete migration notes from reference pages, and keep upgrade guidance in the migration guide - [@dblock](https://github.com/dblock).
 - [#48](https://github.com/dblock/ruby-gem-release/pull/48): Update this project's action and reusable workflow pins in every Markdown file under `docs/`, alongside README, to the released tag during the next development iteration - [@dblock](https://github.com/dblock).
-- Your contribution here.
 
 ## 0.4.0 (2026/11/08)
 
