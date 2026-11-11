@@ -53,7 +53,7 @@ permissions:
 
 jobs:
   release:
-    uses: dblock/ruby-gem-release/.github/workflows/release.yml@v0.5.1
+    uses: dblock/ruby-gem-release/.github/workflows/release.yml@v0.6.0
     with:
       ruby-version: '3.3'
       version: ${{ inputs.version }}

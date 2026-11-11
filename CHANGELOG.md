@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1 (Next)
+
+- Your contribution here.
+
 ## 0.6.0 (2026/11/11)
 
 - [#50](https://github.com/dblock/ruby-gem-release/pull/50): Add optional release spec helpers, local publication adapters, and a complete example for testing project-specific release customizations in isolated repositories - [@dblock](https://github.com/dblock).
