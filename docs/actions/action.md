@@ -37,7 +37,7 @@ jobs:
     environment: release
     steps:
       - name: Release Gem
-        uses: dblock/ruby-gem-release@v0.5.0
+        uses: dblock/ruby-gem-release@v0.5.1
         with:
           ruby-version: '3.3'
           version: ${{ inputs.version }}
