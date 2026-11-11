@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2 (Next)
+
+- Your contribution here.
+
 ## 0.5.1 (2026/11/10)
 
 - [#49](https://github.com/dblock/ruby-gem-release/pull/49): Add ordered lifecycle hooks to standard and semantic workflows, trusted preparation hooks, structured hook failure details, a consumer customization example, and real-Git coverage - [@dblock](https://github.com/dblock).
