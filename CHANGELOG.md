@@ -1,10 +1,19 @@
 # Changelog
 
-## 0.5.2 (Next)
+## 0.6.1 (Next)
+
+- Your contribution here.
+
+## 0.6.0 (2026/11/11)
 
 - [#50](https://github.com/dblock/ruby-gem-release/pull/50): Add optional release spec helpers, local publication adapters, and a complete example for testing project-specific release customizations in isolated repositories - [@dblock](https://github.com/dblock).
 - [#51](https://github.com/dblock/ruby-gem-release/pull/51): Carry changelog subsections into the next release and remove multiple contribution placeholders - [@dblock](https://github.com/dblock).
-- Your contribution here.
+- [#52](https://github.com/dblock/ruby-gem-release/pull/52): Support configured contribution placeholders and complete category templates in Keep a Changelog releases - [@dblock](https://github.com/dblock).
+- [#53](https://github.com/dblock/ruby-gem-release/pull/53): Add Markdown section replacement and text substitution for project-specific release documentation - [@dblock](https://github.com/dblock).
+- [#54](https://github.com/dblock/ruby-gem-release/pull/54): Add whole-project or selected fixture file copying to the optional release spec helper - [@dblock](https://github.com/dblock).
+- [#55](https://github.com/dblock/ruby-gem-release/pull/55): Run full and integration specs concurrently while retaining isolated release processes and combined coverage - [@dblock](https://github.com/dblock).
+- [#56](https://github.com/dblock/ruby-gem-release/pull/56): Configure isolated release fixtures from project workflow builders with local test adapters - [@dblock](https://github.com/dblock).
+- [#57](https://github.com/dblock/ruby-gem-release/pull/57): Support relative globs and mixed file selectors when copying release spec fixtures - [@dblock](https://github.com/dblock).
 
 ## 0.5.1 (2026/11/10)
 

@@ -1,8 +1,10 @@
 # frozen_string_literal: true
 
 require 'fileutils'
+require 'find'
 require 'json'
 require 'open3'
+require 'pathname'
 
 module RubyGemRelease
   module RSpec
@@ -24,6 +26,36 @@ module RubyGemRelease
 
         FileUtils.mkdir_p(File.dirname(destination))
         File.write(destination, content)
+      end
+
+      def copy_files(path:, files: nil)
+        source_root, destination_root = [path, @checkout].map { |directory| File.realpath(directory) }
+        copies = selected_files(source_root, files).map do |file|
+          source = copy_path(source_root, file)
+          raise ArgumentError, "fixture source must be a regular file: #{file}" unless File.file?(source)
+
+          [source, copy_path(destination_root, file)]
+        end
+        copies.each do |source, destination|
+          FileUtils.mkdir_p(File.dirname(destination))
+          FileUtils.copy_file(source, destination, true)
+        end
+      end
+
+      def configure_workflow(require:, builder:)
+        raise ArgumentError, 'workflow builder must be a constant path and method' unless builder.is_a?(String) && /\A(?:::)?[A-Z]\w*(?:::[A-Z]\w*)*\.[a-z_]\w*[!?]?\z/.match?(builder)
+
+        source = workflow_source(require)
+        write('Rakefile', <<~RUBY)
+          require 'ruby-gem-release/rspec'
+          require_relative #{source.dump}
+
+          #{builder}(
+            provider: RubyGemRelease::RSpec::Provider.new,
+            destination: RubyGemRelease::RSpec::Destination.new,
+            hosting: RubyGemRelease::RSpec::Hosting.new
+          ).install_tasks
+        RUBY
       end
 
       def commit!(message = 'Prepare release fixture')
@@ -60,6 +92,68 @@ module RubyGemRelease
       end
 
       private
+
+      def workflow_source(path)
+        raise ArgumentError, 'workflow source must be a nonempty string' unless path.is_a?(String) && !path.empty?
+
+        source = "#{path.delete_suffix('.rb')}.rb"
+        root = File.realpath(@checkout)
+        copy_path(root, source)
+        copy_path(root, 'Rakefile')
+        source
+      end
+
+      def selected_files(root, files)
+        return source_files(root) if files.nil?
+
+        available = nil
+        Array(files).flat_map do |file|
+          source = copy_path(root, file)
+          pattern = source.delete_prefix("#{root}/")
+          next pattern if File.exist?(source) || !pattern.match?(/[*?{\[]/)
+
+          available ||= source_files(root)
+          glob_files(pattern, available)
+        end.uniq
+      end
+
+      def glob_files(pattern, available)
+        matches = available.select { |file| File.fnmatch?(pattern, file, File::FNM_PATHNAME | File::FNM_DOTMATCH | File::FNM_EXTGLOB) }
+        raise ArgumentError, "fixture source must match at least one regular file: #{pattern}" if matches.empty?
+
+        matches
+      end
+
+      def source_files(root)
+        Find.find(root).filter_map do |source|
+          next if source == root
+
+          Find.prune if File.basename(source) == '.git'
+
+          source.delete_prefix("#{root}/") unless File.directory?(source) && !File.symlink?(source)
+        end
+      end
+
+      def copy_path(root, path)
+        path = File.path(path)
+        candidate = File.expand_path(path, root)
+        raise ArgumentError, 'fixture paths must be relative files inside their root' if Pathname.new(path).absolute? || !candidate.start_with?("#{root}/")
+
+        ancestor = candidate
+        ancestor = File.dirname(ancestor) until File.exist?(ancestor) || File.symlink?(ancestor)
+        resolved = File.realpath(ancestor)
+        raise ArgumentError, 'fixture paths must stay inside their root' unless resolved == root || resolved.start_with?("#{root}/")
+
+        check_git_metadata(root, candidate, resolved)
+
+        candidate
+      end
+
+      def check_git_metadata(root, *paths)
+        return unless paths.any? { |path| path.delete_prefix("#{root}/").split('/').include?('.git') }
+
+        raise ArgumentError, 'fixture files must not replace Git metadata'
+      end
 
       def initialize_git
         git('init', '--bare', '--quiet', '-b', 'master', @remote)

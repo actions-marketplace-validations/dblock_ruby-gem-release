@@ -14,7 +14,8 @@ RSpec.describe 'My release configuration' do
 
   it 'updates release documentation' do
     with_release_project do |project|
-      # Write the gemspec, version, changelog, README, and test Rakefile here.
+      # Copy the actual gemspec, version, changelog, README, and workflow files here.
+      project.configure_workflow(require: 'release_workflow', builder: 'ProjectReleaseWorkflow.build')
       project.commit!
       project.release!(version: '0.2.0')
 
@@ -33,18 +34,57 @@ See the [complete spec](../examples/lifecycle_hooks/spec/release_spec.rb) for al
 
 The child processes retain Ruby/Bundler paths but do not inherit Actions variables, credentials, Git overrides, or outer release state. `project.environment` lets you add explicit fixture inputs. The helper uses the currently loaded release gem and parent bundle.
 
-## Local Publication
+## Copy Fixture Files
 
-Keep the project's real version object, changelog, and hooks. In the fixture Rakefile, pass these test-only overrides to its workflow builder:
+Copy real project files instead of duplicating their contents in the spec. `path:` is the source directory; `files:` accepts a single relative path or glob, or an array mixing both:
 
 ```ruby
-require 'ruby-gem-release/rspec'
+source_root = File.expand_path('..', __dir__)
 
-ProjectReleaseWorkflow.build(
-  provider: RubyGemRelease::RSpec::Provider.new,
-  destination: RubyGemRelease::RSpec::Destination.new,
-  hosting: RubyGemRelease::RSpec::Hosting.new
-).install_tasks
+project.copy_files(path: source_root)
+project.copy_files(path: source_root, files: 'README.md')
+project.copy_files(path: source_root, files: %w[README.md bin/run])
+project.copy_files(path: source_root, files: [])
+project.copy_files(path: source_root, files: '**/*.{js,md}')
+project.copy_files(path: source_root, files: ['README.md', 'lib/**/*.rb', 'bin/*'])
+```
+
+Omitting `files:` or passing `nil` copies all files recursively. An empty array copies nothing. Existing exact paths take precedence over glob syntax, so a file named `[notes].md` is copied literally. Overlapping selectors copy each relative file only once.
+
+Globs are matched relative to `path:`, not the current directory. Supported patterns include `*`, `?`, character classes such as `[ab]` or `[a-z]`, brace alternatives such as `*.{rb,md}`, and recursive `**/`. A leading `./` is accepted. `*` does not cross directory separators; use `**/*` for all nested files. Hidden files and hidden directories participate in matching, including with `**/*`. Git ignore rules are not applied, so select only the files needed by your fixture to avoid copying dependency directories and build outputs.
+
+Whole-project copying and glob expansion skip `.git` files and directories at every level to preserve the fixture's isolated repository. Explicit paths or patterns containing a `.git` component are rejected. Glob expansion selects files rather than ordinary directories and never traverses symbolic-link directories. A matched symbolic link must resolve to a regular file inside the source root; its contents are copied, not the link itself.
+
+Copying preserves relative paths, binary content, and file modes, and replaces selected destination files. Missing literal files, patterns matching no files, explicit directory entries, absolute paths, Git metadata, and paths or symbolic links that escape either root are rejected. Every selector must match at least one file. All selected sources and destinations are checked before any copying, so a bad selector or escaping destination link cannot leave a partially copied fixture. Empty directories are not copied.
+
+## Local Publication
+
+Keep the project's real version object, changelog, and hooks. For a project exposing `GrapeRelease.workflow` in `tasks/release.rb`, configure the fixture after copying that file and its dependencies:
+
+```ruby
+project.configure_workflow(
+  require: 'tasks/release',
+  builder: 'GrapeRelease.workflow'
+)
+```
+
+`configure_workflow` writes only the fixture's Rakefile. It requires `ruby-gem-release/rspec`, loads the copied Ruby file, calls the builder with the existing local `Provider`, `Destination`, and `Hosting` adapters, and invokes `install_tasks`. Production configuration is unchanged; `release!` and `run_task` still execute the same release tasks in separate processes.
+
+`require:` is a path inside the checkout, with or without `.rb`. Absolute paths, Git metadata, and paths or symbolic links escaping the checkout are rejected. The path is encoded as a Ruby string literal. `builder:` must be a constant path and method, such as `MyProject::Release.workflow`, not an arbitrary Ruby expression. Invalid arguments are rejected before replacing the Rakefile.
+
+For custom setup or adapter options, keep using `project.write('Rakefile', ...)`. For example:
+
+```ruby
+project.write('Rakefile', <<~RUBY)
+  require 'ruby-gem-release/rspec'
+  require_relative 'release_workflow'
+
+  ProjectReleaseWorkflow.build(
+    provider: RubyGemRelease::RSpec::Provider.new,
+    destination: RubyGemRelease::RSpec::Destination.new(failure: 'Publication rejected'),
+    hosting: RubyGemRelease::RSpec::Hosting.new
+  ).install_tasks
+RUBY
 ```
 
 The provider transports exported values and failed-task information between fixture processes. The destination and hosting adapters copy the exact built archive to `registry/VERSION.gem` and `hosting/VERSION.gem` under `RELEASE_DATA_DIR`, without authentication or network publication. Repetition accepts identical archives and rejects checksum conflicts. Set `failure: 'Publication rejected'` on either adapter to exercise a failure.
