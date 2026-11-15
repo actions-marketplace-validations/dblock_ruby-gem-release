@@ -136,7 +136,7 @@ RSpec.shared_context 'with a GitHub release consumer' do
           return super unless upload || command.first == 'gh'
 
           tags, = super('git', '--git-dir', ENV.fetch('RELEASE_TEST_REMOTE'), 'tag')
-          raise 'Tag pushed before package publication' if upload && !tags.empty?
+          raise 'Tag pushed before package publication' if upload && !tags.empty? && ENV['RELEASE_TEST_REVIEWED_SOURCE'] != 'true'
           version = ENV.fetch('INPUT_VERSION', '')
           version = '0.1.0' if version.empty?
           raise 'GitHub Release attempted before tag push' if !upload && tags.strip != 'v' + version
@@ -150,6 +150,7 @@ RSpec.shared_context 'with a GitHub release consumer' do
           elsif status.success?
             File.write(File.join(service, 'hosting.json'), JSON.generate(
               tag_name: 'v' + version, name: 'v' + version, draft: false, prerelease: false,
+              body: command.include?('--notes-file') ? File.read(command[command.index('--notes-file') + 1]) : '',
               html_url: 'https://github.com/owner/example/releases/tag/v' + version,
               assets: [{name: File.basename(command.last), digest: 'sha256:' + Digest::SHA256.file(command.last).hexdigest}]
             ))
@@ -168,7 +169,7 @@ RSpec.shared_context 'with a GitHub release consumer' do
           http.define_singleton_method(:get) do |path|
             version = ENV.fetch('INPUT_VERSION', '')
             version = '0.1.0' if version.empty?
-            raise 'Unexpected version lookup: ' + path unless path == '/api/v2/rubygems/example/versions/' + version + '.json'
+            raise 'Unexpected version lookup: ' + path unless path == '/api/v2/rubygems/example/versions/' + version + '.json?platform=ruby'
             File.open(File.join(ENV.fetch('RUNNER_TEMP'), 'version-lookups.jsonl'), 'a') { |file| file.puts JSON.generate(path) }
             saved = File.join(ENV.fetch('RELEASE_TEST_SERVICE_DIRECTORY'), 'registry.json')
             published = File.file?(saved)

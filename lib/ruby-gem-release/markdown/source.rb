@@ -1,11 +1,16 @@
 # frozen_string_literal: true
 
-require 'commonmarker'
-
 module RubyGemRelease
   module Markdown
     module Source
       private
+
+      def notes?(node)
+        return false if %i[heading html_block html_inline].include?(node.type)
+        return !node.string_content.strip.empty? if %i[text code code_block].include?(node.type)
+
+        node.each.any? { |child| notes?(child) }
+      end
 
       def heading(content, pattern)
         matches = heading_positions(content, pattern)
@@ -40,7 +45,14 @@ module RubyGemRelease
       end
 
       def document(content)
+        load_markdown_parser
         Commonmarker.parse(content, options: { extension: { shortcodes: false } })
+      end
+
+      def load_markdown_parser
+        require 'commonmarker'
+      rescue LoadError => e
+        raise LoadError, "Markdown changelogs require the optional commonmarker gem (~> 2.10); add it to your Gemfile. #{e.message}"
       end
 
       def line_offsets(lines)

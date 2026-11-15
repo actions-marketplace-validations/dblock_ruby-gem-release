@@ -35,6 +35,14 @@ RSpec.describe RubyGemRelease::Hosting::GitHubRelease do
     expect { publisher.publish!(release) }.to raise_error(RuntimeError, /release already exists/)
   end
 
+  it 'sets an explicit latest policy on creation rather than correcting it afterward' do
+    [true, false].each do |latest|
+      described_class.new(repository: 'example/gem', latest: latest).publish!(release)
+      expect(Open3).to have_received(:capture3).with('gh', 'release', 'create', 'v1.2.3', '--repo', 'example/gem', '--verify-tag', '--title', 'v1.2.3', "--latest=#{latest}", '--generate-notes')
+    end
+    expect { described_class.new(latest: 'false') }.to raise_error(ArgumentError, /latest/)
+  end
+
   it 'uses the persisted notes verbatim instead of requesting platform-generated notes and cleans up the private file' do
     semantic = RubyGemRelease::Release.new(version: '1.2.3', gemspec_version: '1.2.4', date: release.date, notes: "### Features\n\n- Add endpoint.")
     path = nil
@@ -80,9 +88,18 @@ RSpec.describe RubyGemRelease::Hosting::GitHubRelease do
   end
 
   it 'attaches the package-owned exact artifact' do
-    package = instance_double(RubyGemRelease::Package::RubyGem, artifact: artifact)
+    package = instance_double(RubyGemRelease::Package::RubyGem, artifacts: [artifact])
     publisher.publish!(release, package: package)
-    expect(package).to have_received(:artifact).with(release)
+    expect(package).to have_received(:artifacts).with(release)
+  end
+
+  it 'attaches every collection artifact to the same hosted release' do
+    require 'ruby-gem-release/package/collection'
+    second = File.join(directory, 'example-1.2.3-java.gem')
+    File.write(second, 'java gem')
+    package = instance_double(RubyGemRelease::Package::Collection, artifacts: [artifact, second])
+    publisher.publish!(release, package: package)
+    expect(Open3).to have_received(:capture3).with('gh', 'release', 'create', 'v1.2.3', '--repo', 'example/gem', '--verify-tag', '--title', 'v1.2.3', '--generate-notes', artifact, second)
   end
 
   it 'rejects invalid versions before invoking gh', :aggregate_failures do
@@ -109,6 +126,23 @@ RSpec.describe RubyGemRelease::Hosting::GitHubRelease do
     it 'verifies matching assets without creating or uploading again' do
       publisher.publish!(release, artifacts: [artifact])
       expect(Open3).not_to have_received(:capture3).with('gh', 'release', any_args)
+    end
+
+    it 'reconciles latest status once and accepts a lost successful edit response on repetition' do
+      latest = { tag_name: 'v1.2.3' }
+      allow(Open3).to receive(:capture3).with('gh', 'api', '--include', 'repos/example/gem/releases/latest') do
+        ["HTTP/2.0 200 OK\n\n#{JSON.generate(latest)}", '', status]
+      end
+      allow(Open3).to receive(:capture3).with('gh', 'release', 'edit', any_args) do |*arguments|
+        expect(arguments).to include('--latest=false')
+        latest[:tag_name] = 'v2.0.0'
+        ['', 'Response lost', instance_double(Process::Status, success?: false)]
+      end
+      configured = described_class.new(repository: 'example/gem', latest: false)
+      expect { configured.publish!(release, artifacts: [artifact]) }.to raise_error(/Response lost/)
+      expect { configured.publish!(release, artifacts: [artifact]) }.not_to raise_error
+      expect(Open3).to have_received(:capture3).with('gh', 'release', 'edit', any_args).once
+      expect(Open3).not_to have_received(:capture3).with('gh', 'release', 'create', any_args)
     end
 
     it 'uploads missing assets with replacement enabled for retry-safe publication' do

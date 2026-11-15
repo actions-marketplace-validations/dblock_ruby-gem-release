@@ -12,10 +12,11 @@ module RubyGemRelease
     class RubyGem
       attr_reader :directory, :gemspec
 
-      def initialize(gemspec: nil, directory: nil)
+      def initialize(gemspec: nil, directory: nil, audit: nil)
         @gemspec = resolve_gemspec(gemspec || ENV.fetch('GEMSPEC_PATH', nil))
         directory ||= ENV.fetch('RELEASE_DATA_DIR', nil)
         @directory = directory.to_s.empty? ? Dir.mktmpdir('ruby-gem-release-') : directory
+        @audit = audit
       end
 
       def version
@@ -39,12 +40,20 @@ module RubyGemRelease
       end
 
       def artifact(release)
-        name = verified_manifest(release).fetch('name')
+        manifest = verified_manifest(release)
+        name = manifest.fetch('name')
         raise 'Invalid package name' unless /\A[A-Za-z0-9][A-Za-z0-9_.-]*\z/.match?(name)
 
-        path = File.join(@directory, "#{name}-#{release.version}.gem")
+        platform = manifest.fetch('platform', 'ruby')
+        raise 'Invalid package platform' unless /\A[A-Za-z0-9][A-Za-z0-9_.-]*\z/.match?(platform)
+
+        path = File.join(@directory, Gem::Package.new(archive).spec.file_name)
         FileUtils.cp(archive, path)
         path
+      end
+
+      def artifacts(release)
+        [artifact(release)]
       end
 
       private
@@ -58,7 +67,7 @@ module RubyGemRelease
         spec = Gem::Package.new(archive).spec
         raise "Built version #{spec.version} does not match #{release.version}" unless spec.version.to_s == release.version
 
-        { 'name' => spec.name, 'version' => spec.version.to_s, 'sha256' => Digest::SHA256.file(archive).hexdigest }
+        identity(spec).merge('sha256' => Digest::SHA256.file(archive).hexdigest)
       end
 
       def verified_manifest(release)
@@ -67,12 +76,18 @@ module RubyGemRelease
         raise 'Built artifact changed; refusing publication' unless Digest::SHA256.file(archive).hexdigest == manifest.fetch('sha256')
 
         verify_metadata!(manifest, release)
+        @audit&.verify!(archive)
         manifest
       end
 
       def verify_metadata!(manifest, release)
         spec = Gem::Package.new(archive).spec
-        raise 'Artifact metadata differs from manifest' unless spec.name == manifest.fetch('name') && spec.version.to_s == release.version
+        expected = { 'name' => manifest.fetch('name'), 'version' => release.version, 'platform' => manifest.fetch('platform', 'ruby') }
+        raise 'Artifact metadata differs from manifest' unless identity(spec) == expected
+      end
+
+      def identity(spec)
+        { 'name' => spec.name, 'version' => spec.version.to_s, 'platform' => spec.platform.to_s }
       end
 
       def archive
