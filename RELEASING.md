@@ -27,7 +27,7 @@ Availability depends on visibility and plan; verify these controls before relyin
 
 Both interfaces require the default branch and a clean checkout after dependency installation. Ignore intentional dependency output such as `.bundle/config` or `vendor/bundle`; unexpected tracked, staged, or untracked non-ignored changes fail. Preparation stages trusted edits before testing; publication rejects subsequent changes rather than staging them.
 
-The default manual workflow releases the checked-in version, or honors an explicit `version` input, then increments patch afterward. Semantic workflows select from release history and default to no development bump. Custom commands own their operations and must retain the [documented ordering and guards](docs/usage.md#custom-callbacks).
+The default manual workflow releases the checked-in version, or honors an explicit `version` input, then increments patch afterward unless `next_version:` selects another part. Semantic workflows select from release history and default to no development bump. Custom commands own their operations and must retain the [documented ordering and guards](docs/usage.md#custom-callbacks).
 
 Validate and build before authorizing a release:
 
@@ -40,7 +40,7 @@ bundle exec rake build
 
 The manual **Release** caller is [`.github/workflows/publish.yml`](.github/workflows/publish.yml). Merges and schedules do not publish. It uses Ruby 4.0, the root Rakefile, and `America/New_York` for release dates and Git timestamp offsets.
 
-Verify the existing RubyGems trusted publisher before dispatch. The caller passes the non-secret `RUBYGEMS_OWNER_ID` repository variable when set; this identifies an account, not an API key. Pending publishers need it for first publication.
+Verify the existing RubyGems trusted publisher before dispatch with a [dry run](docs/actions/release.md#dry-run), which exchanges credentials without releasing: `gh workflow run publish.yml --ref master -f dry-run=true`. The caller passes the non-secret `RUBYGEMS_OWNER_ID` repository variable when set; this identifies an account, not an API key. Pending publishers need it for first publication.
 
 Only after explicit authorization, successful validation, and confirmed setup:
 

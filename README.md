@@ -26,7 +26,7 @@ RubyGemRelease::Workflow::RubyGem.new(
 ).install_tasks
 ```
 
-These defaults select the gemspec and repository, reject empty pending notes, prepare the changelog, publish to RubyGems and GitHub Releases, and increment the patch version for the next development iteration. Dates use UTC.
+These defaults select the gemspec and repository, reject empty pending notes, prepare the changelog, publish to RubyGems and GitHub Releases, and increment the patch version for the next development iteration; pass `next_version: :minor` or `:major` to [increment another part](docs/workflow/ruby_gem.md#next-version). Dates use UTC.
 
 ### 2. Add the Release Workflow
 
@@ -53,7 +53,7 @@ permissions:
 
 jobs:
   release:
-    uses: dblock/ruby-gem-release/.github/workflows/release.yml@v0.7.0
+    uses: dblock/ruby-gem-release/.github/workflows/release.yml@v0.9.0
     with:
       ruby-version: '3.3'
       version: ${{ inputs.version }}
@@ -70,11 +70,13 @@ gh api --method PUT repos/{owner}/{repo}/environments/release
 
 For a new gem, open the [pending trusted publishers page](https://rubygems.org/profile/oidc/pending_trusted_publishers). For an existing gem, open your existing gem's **Trusted publishers** page (e.g. `https://rubygems.org/gems/example/trusted_publishers`). Create a [trusted publisher](https://guides.rubygems.org/trusted-publishing/#using-reusable-workflows). Set the repository fields to your gem's repository, the workflow filename to `release.yml`, and the environment to `release`. Set the separate workflow repository fields to `dblock` and `ruby-gem-release`; these identify the reusable workflow RubyGems verifies in the OIDC token.
 
+To verify this setup without releasing, dispatch a [dry run](docs/actions/release.md#dry-run).
+
 Collaborators with write access can dispatch releases after this setup, without repository admin access or their own RubyGems credentials. Creating the environment alone does not restrict publication. Configure [required maintainer approval and deployment branches](RELEASING.md#maintainer-approved-publication) to control who approves publication.
 
 ### 4. Make a Release
 
-Your branch rules must permit release commits and tags to be pushed; see [branch permissions](RELEASING.md#one-time-setup). Dispatching starts a publishing run; when required reviewers are configured, the release job waits for approval from a designated maintainer. Run your project's tests and build checks, review the changes, and dispatch from your default branch:
+Your branch rules must permit release commits and tags to be pushed; see [branch permissions](RELEASING.md#one-time-setup). Each release checks this before publishing. Dispatching starts a publishing run; when required reviewers are configured, the release job waits for approval from a designated maintainer. Run your project's tests and build checks, review the changes, and dispatch from your default branch:
 
 **First release:** Pass the numeric RubyGems account ID shown on the Pending Trusted Publishers page as `rubygems-owner`. This declares the account that will own the gem on its first publication. Replace `YOUR_ACCOUNT_ID` below with that ID:
 

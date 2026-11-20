@@ -37,7 +37,7 @@ jobs:
     environment: release
     steps:
       - name: Release Gem
-        uses: dblock/ruby-gem-release@v0.7.0
+        uses: dblock/ruby-gem-release@v0.9.0
         with:
           ruby-version: '3.3'
           version: ${{ inputs.version }}
@@ -48,7 +48,7 @@ The action checks out the calling repository with full history and sets up Ruby 
 
 ## Inputs and Environment
 
-Inputs, command defaults, callback semantics, and exported environment variables match the [workflow reference](release.md#inputs). Set them under the action step's `with:` mapping rather than under a reusable-workflow job. All action inputs are strings. Dispatching the sample workflow requests publication; configured environment protection rules must pass before the job runs.
+Inputs, command defaults, callback semantics, and exported environment variables match the [workflow reference](release.md#inputs). Set them under the action step's `with:` mapping rather than under a reusable-workflow job. All action inputs are strings. `gemfile` defaults to empty, which keeps a `BUNDLE_GEMFILE` the calling job already sets; a nonempty value is exported for all later steps before Ruby setup. Dispatching the sample workflow requests publication; configured environment protection rules must pass before the job runs.
 
 For [already-reviewed source and package collections](../workflow/reviewed_ruby_gem.md), configure `Workflow::ReviewedRubyGem` in the Rakefile. Optional `prepare-artifacts` prepares explicit input archives after Ruby setup, before loading release tasks for input configuration and capture; `artifacts` adds newline-separated paths to artifact preservation. Both default to empty. Caller-provided commands retain release privileges and must use reviewed inputs.
 
@@ -67,6 +67,8 @@ The optional `success` and `failure` command inputs default to `bundle exec rake
 Register a RubyGems trusted publisher for the calling repository, its own workflow filename (`release.yml` above), and environment `release`. Leave the optional Workflow Repository fields blank: the composite action is a step in your workflow, not a reusable workflow from another repository.
 
 For maintainer-only publication, protect the caller job's `release` environment using [Maintainer-Approved Publication](../../RELEASING.md#maintainer-approved-publication). Other repository writers can dispatch, but publication waits for a designated maintainer to approve. Environments do not restrict who can dispatch, and an environment without protection rules does not restrict release access.
+
+The action checks [release prerequisites](release.md#release-prerequisites), including the trusted publisher and the token's ability to push the release commit and tag, after context capture and before validation, edits, or publication. To check without releasing, run `bundle exec rake release:workflow:preflight` in a job of the same workflow file, in the `release` environment, with `id-token: write`. RubyGems matches the workflow file and environment, so a check from another workflow or environment does not prove the release job's configuration. The composite action has no dry-run input.
 
 For first publication, register a pending trusted publisher and supply its numeric account ID through `rubygems-owner`. Later publications can omit that input. The default `release:publish` task authenticates through the configured destination before invoking its publication callback; no separate YAML authentication step is needed. The RubyGems destination uses the [Ruby credentials helper](../workflow/ruby_gems_credentials.md) without a stored API key. It exports environment variables and does not create or modify `~/.gem/credentials`. Command overrides that bypass the task must own authentication as well as publication.
 

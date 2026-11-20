@@ -1,8 +1,22 @@
 # Changelog
 
-## 0.7.1 (Next)
+## 0.9.1 (Next)
 
 - Your contribution here.
+
+## 0.9.0 (2026/11/20)
+
+- [#89](https://github.com/dblock/ruby-gem-release/pull/89): Add a `gemfile` input to the reusable workflow and composite action that selects the Gemfile every release step installs and runs in, so release-only gems can stay out of a project's main bundle - [@dblock](https://github.com/dblock).
+
+## 0.8.0 (2026/11/20)
+
+- [#79](https://github.com/dblock/ruby-gem-release/pull/79): Select the next development version part with `next_version: :minor` or `:major` on `Workflow::RubyGem` and `Workflow::SemanticRubyGem` - [@dblock](https://github.com/dblock).
+- [#80](https://github.com/dblock/ruby-gem-release/pull/80): Skip posting empty Danger report comments - [@dblock](https://github.com/dblock).
+- [#82](https://github.com/dblock/ruby-gem-release/pull/82): Create the default package and Git temporary directories only when release data is first used, so loading a workflow leaves none behind - [@dblock](https://github.com/dblock).
+- [#83](https://github.com/dblock/ruby-gem-release/pull/83): Name Intridea subsections with `sections:`, dropping sections without notes from a release and starting every Next section with all of them - [@dblock](https://github.com/dblock).
+- [#85](https://github.com/dblock/ruby-gem-release/pull/85): Verify RubyGems Trusted Publishing before every release with a `release:workflow:preflight` task, add a `dry-run` workflow input that runs only that check, and name the token claims in rejected exchanges - [@dblock](https://github.com/dblock).
+- [#86](https://github.com/dblock/ruby-gem-release/pull/86): Check that the release token can push to the default branch and that no repository rules would reject the release commit or tag before every release - [@dblock](https://github.com/dblock).
+- [#88](https://github.com/dblock/ruby-gem-release/pull/88): Pin every action used by the reusable workflow, the composite action, and this repository's workflows to a commit SHA, with Dependabot proposing updates - [@dblock](https://github.com/dblock).
 
 ## 0.7.0 (2026/11/20)
 

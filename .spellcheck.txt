@@ -7,6 +7,7 @@ Commonmarker
 codename
 customizations
 dblock
+Dependabot
 ExecutionContext
 ExecutionProvider
 gemspec
@@ -17,6 +18,7 @@ GPG
 HTTPS
 idempotence
 Intridea
+lockfile
 JSON
 JRuby
 LCOV
@@ -48,6 +50,7 @@ rulesets
 RSpec
 RuboCop
 RubyGems
+SHA
 strftime
 subclasses
 subprocess

@@ -8,7 +8,7 @@ require 'tmpdir'
 RSpec.describe 'Release interface contracts' do
   shared_examples 'a release interface' do
     it 'captures after setup, validates before edits, and uses normal failure gating downstream' do
-      setup = steps.index { |step| step['uses'] == 'ruby/setup-ruby@v1' }
+      setup = steps.index { |step| step['uses'].to_s.start_with?('ruby/setup-ruby@') }
       capture = steps.index { |step| step['id'] == 'capture_release_context' }
       validation = steps.index { |step| step['id'] == 'validate_release' }
       expect(capture).to be > setup
@@ -19,6 +19,16 @@ RSpec.describe 'Release interface contracts' do
         expect(steps.index(step)).to be > validation
         expect(step.fetch('if', '${{ success() }}')).to eq('${{ success() }}')
       end
+    end
+
+    it 'checks release prerequisites after capture, before validation, edits, or publication' do
+      preflight = steps.find { |step| step['id'] == 'check_release_prerequisites' }
+      expect(preflight.fetch('run')).to eq('bundle exec rake release:workflow:preflight')
+      expect(preflight.dig('env', 'RELEASE_STEP_ID')).to eq('check_release_prerequisites')
+      expect(preflight.dig('env', 'GH_TOKEN')).to eq('${{ github.token }}')
+      expect(preflight.fetch('if', '${{ success() }}')).to eq('${{ success() }}')
+      expect(steps.index(preflight)).to be > steps.index { |step| step['id'] == 'capture_release_context' }
+      expect(steps.index(preflight)).to be < steps.index { |step| step['id'] == 'validate_release' }
     end
 
     it 'transports enclosing step identities and observed history to configurable commands' do
@@ -119,6 +129,30 @@ RSpec.describe 'Release interface contracts' do
     it 'passes the configured timezone to the release job' do
       expect(workflow.dig('jobs', 'release', 'env', 'TZ')).to eq('${{ inputs.timezone }}')
     end
+
+    it 'installs and runs every job in the selected Gemfile', :aggregate_failures do
+      expect(workflow.fetch(true).dig('workflow_call', 'inputs', 'gemfile')).to include('type' => 'string', 'default' => 'Gemfile')
+      %w[preflight release].each do |job|
+        expect(workflow.dig('jobs', job, 'env', 'BUNDLE_GEMFILE')).to eq('${{ inputs.gemfile }}')
+      end
+    end
+
+    it 'runs only the prerequisite checks in the release environment for a dry run', :aggregate_failures do
+      expect(workflow.dig(true, 'workflow_call', 'inputs', 'dry-run')).to include('type' => 'boolean', 'default' => false)
+      expect(workflow.dig('jobs', 'release', 'if')).to eq('${{ !inputs.dry-run }}')
+      preflight = workflow.dig('jobs', 'preflight')
+      expect(preflight).to include('if' => '${{ inputs.dry-run }}', 'environment' => 'release')
+      expect(preflight.dig('env', 'RUBYGEMS_OWNER_ID')).to eq('${{ inputs.rubygems-owner }}')
+      expect(preflight.fetch('steps').map { |step| step['run'] }.compact).to eq(['bundle exec rake release:workflow:capture', 'bundle exec rake release:workflow:preflight'])
+      expect(preflight.fetch('env')).to eq(workflow.dig('jobs', 'release', 'env'))
+      expect(preflight.fetch('steps').last).to eq(steps.find { |step| step['id'] == 'check_release_prerequisites' })
+    end
+
+    it 'lets this repository dispatch a dry run of its own release' do
+      caller = YAML.load_file('.github/workflows/publish.yml')
+      expect(caller.dig(true, 'workflow_dispatch', 'inputs', 'dry-run')).to include('type' => 'boolean', 'default' => false)
+      expect(caller.dig('jobs', 'release', 'with', 'dry-run')).to eq('${{ inputs.dry-run }}')
+    end
   end
 
   context 'with the composite action' do
@@ -130,6 +164,34 @@ RSpec.describe 'Release interface contracts' do
     it 'passes the configured timezone to input configuration' do
       expect(steps.find { |step| step['id'] == 'configure_release_inputs' }.dig('env', 'TZ')).to eq('${{ inputs.timezone }}')
     end
+
+    it 'exports a selected Gemfile before Ruby setup and rejects multiline values', :aggregate_failures do
+      selection = steps.find { |step| step['id'] == 'select_gemfile' }
+      expect(selection.fetch('if')).to eq("${{ inputs.gemfile != '' }}")
+      expect(steps.index(selection)).to be < steps.index { |step| step['id'] == 'setup_ruby' }
+      Dir.mktmpdir do |directory|
+        environment = File.join(directory, 'environment')
+        File.write(environment, '')
+        values = ENV.to_h.slice('PATH').merge('GITHUB_ENV' => environment, 'RELEASE_GEMFILE' => 'gemfiles/release.gemfile')
+        _output, error, status = Open3.capture3(values, 'bash', '-euo', 'pipefail', '-c', selection.fetch('run'), unsetenv_others: true)
+        expect(status.success?).to be(true), error
+        expect(File.read(environment)).to eq("BUNDLE_GEMFILE=gemfiles/release.gemfile\n")
+        _output, error, status = Open3.capture3(values.merge('RELEASE_GEMFILE' => "Gemfile\nINJECTED=1"), 'bash', '-euo', 'pipefail', '-c', selection.fetch('run'), unsetenv_others: true)
+        expect(status.success?).to be(false)
+        expect(error).to include('single line')
+        expect(File.read(environment)).to eq("BUNDLE_GEMFILE=gemfiles/release.gemfile\n")
+      end
+    end
+  end
+
+  it 'pins every external action and reusable workflow to a commit with its version as a comment', :aggregate_failures do
+    references = Dir['.github/workflows/*.yml', 'action.yml'].flat_map do |path|
+      File.readlines(path).filter_map { |line| [path, line.strip] if line.match?(/\A\s*-?\s*uses:\s/) }
+    end
+    expect(references).not_to be_empty
+    references.reject { |_path, line| line.match?(%r{uses: \./}) }.each do |path, line|
+      expect(line).to match(%r{\A-?\s*uses: [\w.-]+/[\w./-]+@[0-9a-f]{40} # v\d+(\.\d+)*\z}), "#{path}: #{line}"
+    end
   end
 
   context 'with Danger reporting workflows' do
@@ -140,16 +202,16 @@ RSpec.describe 'Release interface contracts' do
       expect(producer.fetch(true).keys).to eq(['pull_request'])
       expect(producer.fetch('permissions')).to eq('contents' => 'read')
       job = producer.fetch('jobs').fetch('danger')
-      expect(job.fetch('uses')).to eq('danger/danger-pr-comment/.github/workflows/danger-run.yml@v0.3.0')
+      expect(job.fetch('uses')).to eq('danger/danger-pr-comment/.github/workflows/danger-run.yml@645e89bcc7be89ee7e8362166110b05cbced8e59')
       expect(job.fetch('with')).not_to have_key('danger-args')
       expect(job).not_to have_key('secrets')
     end
 
-    it 'delegates completed-run commenting without executing contribution code' do
+    it 'delegates completed-run commenting without executing contribution code or posting empty reports' do
       expect(commenter.fetch(true)).to eq('workflow_run' => { 'workflows' => ['Danger'], 'types' => ['completed'] })
       expect(commenter.fetch('permissions')).to eq('actions' => 'read', 'issues' => 'write', 'pull-requests' => 'write')
       job = commenter.fetch('jobs').fetch('comment')
-      expect(job).to eq('uses' => 'danger/danger-pr-comment/.github/workflows/danger-comment.yml@v0.3.0')
+      expect(job).to eq('uses' => 'danger/danger-pr-comment/.github/workflows/danger-comment.yml@645e89bcc7be89ee7e8362166110b05cbced8e59', 'with' => { 'comment-empty' => false })
     end
   end
 end
