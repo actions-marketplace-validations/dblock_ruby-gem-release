@@ -55,7 +55,7 @@ on:
 
 jobs:
   release:
-    uses: dblock/ruby-gem-release/.github/workflows/release.yml@v0.7.0
+    uses: dblock/ruby-gem-release/.github/workflows/release.yml@v0.8.0
     with:
       ruby-version: '3.3'
       dry-run: ${{ inputs.dry-run }}

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.1 (Next)
+
+- Your contribution here.
+
 ## 0.8.0 (2026/11/20)
 
 - [#79](https://github.com/dblock/ruby-gem-release/pull/79): Select the next development version part with `next_version: :minor` or `:major` on `Workflow::RubyGem` and `Workflow::SemanticRubyGem` - [@dblock](https://github.com/dblock).
