@@ -21,11 +21,11 @@ RubyGemRelease::Workflow::ReviewedRubyGem.new(
 
 `branches:` is a required, nonempty list of exact Git branch names, not patterns. The provider ref must name an allowed branch, the checkout must be clean and at its current remote tip, and the package version must match the selected release version. The default manual and semantic workflows retain their default-branch policy.
 
-Before building and publishing, the workflow requires `vVERSION` at the captured checkout commit, the exact same tag object on the remote, and successful `git verify-tag`. Configure trusted GPG or SSH signers on the runner before invoking release tasks. Lightweight, unsigned, missing, conflicting, or untrusted tags fail rather than being created or replaced. Checkout and branch advancement fail even when the old source remains an ancestor.
+Before building and publishing, the workflow requires `vVERSION` at the captured checkout commit, the exact same tag object on the remote, and successful `git verify-tag`. Configure trusted GPG or SSH signers on the runner before invoking release tasks. Lightweight, unsigned, missing, conflicting, or untrusted tags fail rather than being created or replaced. Checkout and branch advancement fail even when the old source remains an ancestor. The default `SourceControl::ReviewedGit` wraps a `SourceControl::Git` checkout and exposes no operations that stage, commit, tag, or push.
 
 The workflow does not infer review approval from a signature. Keep project-specific merged-PR, maintainer, codename, backport, and release-note policies in `validate:` or lifecycle hooks. Protect the release environment and allowed deployment branches. No option bypasses signature verification.
 
-`release:prepare` only verifies source; `release:bump` is a no-op. Build hooks must not edit tracked files or leave untracked files. A verified Git bundle is retained for inspection. `notes:` optionally accepts a [read-only notes reader](../changelog/notes.md); invalid notes fail validation before registry publication. Custom notifications continue to receive normal execution contexts.
+`release:prepare` only verifies source; `release:bump` is a no-op. The workflow is independent of `Workflow::RubyGem` and accepts no `version:` or `changelog:`; it shares only lifecycle hooks and task installation. Build hooks must not edit tracked files or leave untracked files. A verified Git bundle is retained for inspection. `notes:` optionally accepts a [read-only notes reader](../changelog/notes.md); invalid notes fail validation before registry publication. Custom notifications continue to receive normal execution contexts.
 
 ## Package Sets and Retained Inputs
 

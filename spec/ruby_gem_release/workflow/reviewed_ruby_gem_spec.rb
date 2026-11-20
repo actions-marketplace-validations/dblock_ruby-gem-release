@@ -35,7 +35,6 @@ RSpec.describe RubyGemRelease::Workflow::ReviewedRubyGem do
   it 'publishes verified notes and makes the preparation and bump phases read-only' do
     workflow.install_tasks
     %w[validate prepare workflow:checkpoint publish bump].each { |phase| Rake::Task["release:#{phase}"].invoke }
-    %i[commit! tag! push! commit_next! stage_changes!].each { |operation| expect(objects.fetch(:git)).not_to have_received(operation) }
     expect(objects.fetch(:package)).to have_received(:build!).twice
     expect(objects.fetch(:git)).to have_received(:preserve!).twice
     expect(objects.fetch(:hosting)).to have_received(:publish!).with(have_attributes(notes: '- Reviewed change.'), package: objects.fetch(:package))
@@ -55,5 +54,22 @@ RSpec.describe RubyGemRelease::Workflow::ReviewedRubyGem do
     expect { Rake::Task['release:publish'].invoke }.to raise_error(/Source changed during build/)
     expect(objects.fetch(:destination)).not_to have_received(:publish!)
     expect(objects.fetch(:hosting)).not_to have_received(:publish!)
+  end
+
+  it 'composes the shared lifecycle without inheriting the editing workflow or its version and changelog options', :aggregate_failures do
+    expect(described_class.ancestors).to include(RubyGemRelease::Workflow::Lifecycle)
+    expect(described_class.superclass).to eq(Object)
+    expect(workflow).not_to respond_to(:version)
+    expect(workflow).not_to respond_to(:changelog)
+    expect { described_class.new(branches: ['7-2-stable'], version: Object.new, **objects) }.to raise_error(ArgumentError, /unknown keyword: :version/)
+  end
+
+  it 'runs lifecycle hooks for the stages it executes' do
+    events = []
+    workflow.before(:validate) { |ctx| events << [ctx.stage, ctx.hook] }
+    workflow.after(:build_package) { |ctx| events << [ctx.stage, ctx.hook] }
+    workflow.install_tasks
+    %w[validate workflow:checkpoint].each { |phase| Rake::Task["release:#{phase}"].invoke }
+    expect(events).to eq([%i[validate before], %i[build_package after]])
   end
 end

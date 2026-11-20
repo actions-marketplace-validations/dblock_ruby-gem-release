@@ -1,26 +1,44 @@
 # frozen_string_literal: true
 
-require_relative 'ruby_constant'
+require_relative 'interface'
 
 module RubyGemRelease
   module Version
-    class References < RubyConstant
-      def initialize(references:, **)
-        super(**)
-        raise ArgumentError, 'references must map files to arrays of patterns with a named version capture' unless references.is_a?(Hash) && references.values.all? { |patterns| patterns.is_a?(Array) && patterns.all? { |pattern| pattern.is_a?(Regexp) && pattern.names.include?('version') } }
+    class References
+      def initialize(version:, references:)
+        raise ArgumentError, 'references must map files to arrays of patterns with a named version capture' unless valid_references?(references)
 
+        @version = Interface.check!(version)
         @references = references
       end
 
-      def increment!(part: :patch, from: read)
-        next_version(part: part, from: from)
-        updates = reference_files.map { |path, patterns| updated_file(path, patterns, from) }
-        result = super
-        updates.each { |path, original, updated| File.write(path, updated) unless original == updated }
+      def read
+        @version.read
+      end
+
+      def set!(value)
+        @version.set!(value)
+      end
+
+      def increment!(from: read, **)
+        files = reference_files
+        files.each { |path, patterns| updated_content(File.read(path), patterns, from) }
+        result = @version.increment!(from: from, **)
+        files.each do |path, patterns|
+          original = File.read(path)
+          updated = updated_content(original, patterns, from)
+          File.write(path, updated) unless original == updated
+        end
         result
       end
 
       private
+
+      def valid_references?(references)
+        references.is_a?(Hash) && references.values.all? do |patterns|
+          patterns.is_a?(Array) && patterns.all? { |pattern| pattern.is_a?(Regexp) && pattern.names.include?('version') }
+        end
+      end
 
       def reference_files
         @references.each_with_object({}) do |(selector, patterns), files|
@@ -30,12 +48,10 @@ module RubyGemRelease
         end
       end
 
-      def updated_file(path, patterns, version)
-        original = File.read(path)
-        updated = patterns.reduce(original) do |content, pattern|
-          content.gsub(pattern) { replace_capture(Regexp.last_match, version) }
+      def updated_content(content, patterns, version)
+        patterns.reduce(content) do |updated, pattern|
+          updated.gsub(pattern) { replace_capture(Regexp.last_match, version) }
         end
-        [path, original, updated]
       end
 
       def replace_capture(match, version)

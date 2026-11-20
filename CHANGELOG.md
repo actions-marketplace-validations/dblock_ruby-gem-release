@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.7.0 (Next)
+## 0.7.1 (Next)
+
+- Your contribution here.
+
+## 0.7.0 (2026/11/20)
 
 - [#58](https://github.com/dblock/ruby-gem-release/pull/58): Replace the ruby rocket logo with a faceted ruby and upward release arrow - [@dblock](https://github.com/dblock).
 - [#60](https://github.com/dblock/ruby-gem-release/pull/60): Preserve gem platform identity in archive filenames and manifests and verify RubyGems publications per platform - [@dblock](https://github.com/dblock).
@@ -12,9 +16,13 @@
 - [#67](https://github.com/dblock/ruby-gem-release/pull/67): Publish signed, already-reviewed source on explicit branches without editing files, creating tags, pushing Git refs, or bumping versions - [@dblock](https://github.com/dblock).
 - [#68](https://github.com/dblock/ruby-gem-release/pull/68): Load prebuilt archives from original build manifests with explicit expected identities and content audits - [@dblock](https://github.com/dblock).
 - [#69](https://github.com/dblock/ruby-gem-release/pull/69): Allow configuring the Intridea release date format with `date_format:`, and recognize release headings in any date format - [@numbata](https://github.com/numbata).
-- [#70](https://github.com/dblock/ruby-gem-release/pull/70): Update configured version references in selected files and globs to the released version during the next development bump - [@dblock](https://github.com/dblock).
+- [#70](https://github.com/dblock/ruby-gem-release/pull/70), [#75](https://github.com/dblock/ruby-gem-release/pull/75), [#76](https://github.com/dblock/ruby-gem-release/pull/76): Update configured version references in selected files and globs to the released version during the next development bump, wrapping Ruby constant, plain text, or custom version objects - [@dblock](https://github.com/dblock).
 - [#71](https://github.com/dblock/ruby-gem-release/pull/71): Run Danger with full history, exporting reports for a separate commenting workflow so fork contributions need no write permissions - [@dblock](https://github.com/dblock).
-- Your contribution here.
+- [#72](https://github.com/dblock/ruby-gem-release/pull/72): Support plain text version files - [@dblock](https://github.com/dblock).
+- [#73](https://github.com/dblock/ruby-gem-release/pull/73): Run grouped installed-gem integration suites in parallel CI matrix jobs - [@dblock](https://github.com/dblock).
+- [#76](https://github.com/dblock/ruby-gem-release/pull/76): **Breaking:** Require custom version objects to implement `read`, `set!`, and `increment!`, validated at workflow construction - [@dblock](https://github.com/dblock).
+- [#77](https://github.com/dblock/ruby-gem-release/pull/77): Compose a shared lifecycle in the reviewed workflow instead of inheriting from the editing workflow; it no longer accepts `version:` or `changelog:` - [@dblock](https://github.com/dblock).
+- [#78](https://github.com/dblock/ruby-gem-release/pull/78): Wrap Git in reviewed source control rather than inheriting from it, so reviewed releases cannot stage, commit, tag, or push - [@dblock](https://github.com/dblock).
 
 ## 0.6.0 (2026/11/11)
 
