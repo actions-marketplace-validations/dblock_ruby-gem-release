@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.0 (Next)
+## 0.7.0 (2026/11/20)
 
 - [#58](https://github.com/dblock/ruby-gem-release/pull/58): Replace the ruby rocket logo with a faceted ruby and upward release arrow - [@dblock](https://github.com/dblock).
 - [#60](https://github.com/dblock/ruby-gem-release/pull/60): Preserve gem platform identity in archive filenames and manifests and verify RubyGems publications per platform - [@dblock](https://github.com/dblock).
@@ -19,7 +19,6 @@
 - [#76](https://github.com/dblock/ruby-gem-release/pull/76): **Breaking:** Require custom version objects to implement `read`, `set!`, and `increment!`, validated at workflow construction - [@dblock](https://github.com/dblock).
 - [#77](https://github.com/dblock/ruby-gem-release/pull/77): Compose a shared lifecycle in the reviewed workflow instead of inheriting from the editing workflow; it no longer accepts `version:` or `changelog:` - [@dblock](https://github.com/dblock).
 - [#78](https://github.com/dblock/ruby-gem-release/pull/78): Wrap Git in reviewed source control rather than inheriting from it, so reviewed releases cannot stage, commit, tag, or push - [@dblock](https://github.com/dblock).
-- Your contribution here.
 
 ## 0.6.0 (2026/11/11)
 
