@@ -45,7 +45,7 @@ The check cannot confirm the publisher belongs to this gem, or that RubyGems wil
 
 ### Dry Run
 
-Set `dry-run: true` to run only the [prerequisite checks](#release-prerequisites). A separate `preflight` job replaces the `release` job, in the same `release` environment, so required reviewers still approve it. It never edits, commits, tags, pushes, builds, or publishes. To dispatch dry runs, add a boolean input:
+Set `dry-run: true` to run only the [prerequisite checks](#release-prerequisites). A separate `preflight` job replaces the `release` job, in the same `release` environment, so required reviewers still approve it. It never edits, commits, tags, pushes, builds, or publishes. It also checks that the checkout is clean after Ruby setup, so a dry run catches setup output such as `vendor/bundle` that `.gitignore` is missing. To dispatch dry runs, add a boolean input:
 
 ```yaml
 on:
@@ -92,7 +92,21 @@ gem 'commonmarker', '~> 2.10', require: false
 gem 'ruby-gem-release', '0.9.0', require: false
 ```
 
-The workflow sets `BUNDLE_GEMFILE` for the whole job, so every step and default command, including the full `test` suite, uses this bundle. Commit or ignore the lockfile Bundler writes next to it; an untracked lockfile fails the clean-checkout check. In your Rakefile, wrap the release task setup in `rescue LoadError` so the main bundle works without the gem.
+The workflow sets `BUNDLE_GEMFILE` for the whole job, so every step and default command, including the full `test` suite, uses this bundle. Commit or ignore the lockfile Bundler writes next to it; an untracked lockfile fails the clean-checkout check. In your Rakefile, install the release tasks only when the gem is in the active bundle, so the main bundle works without it:
+
+```ruby
+if Gem.loaded_specs.key?('ruby-gem-release')
+  require 'ruby-gem-release/workflow/ruby_gem'
+  require 'ruby-gem-release/changelog'
+
+  RubyGemRelease::Workflow::RubyGem.new(
+    version: RubyGemRelease::Version::RubyConstant.new(path: 'lib/example/version.rb', constant: 'VERSION'),
+    changelog: RubyGemRelease::Changelog::KeepAChangelog.new
+  ).install_tasks
+end
+```
+
+Prefer this to `rescue LoadError`, which also hides a real load failure in the gem or its dependencies and silently drops the release tasks.
 
 ### Timezone
 
@@ -124,7 +138,7 @@ The workflow sets `GH_TOKEN` during publication. Branch rules must allow fast-fo
 
 The job runs on `ubuntu-latest` in the `release` environment with a full checkout. Releases share one concurrency group per repository, so a new release waits rather than canceling a running one.
 
-1. **Capture:** after Ruby setup, the checkout must be clean. Changed, staged, or untracked files fail with their paths. Ignored Bundler output is fine; tracked dependency files are not.
+1. **Capture:** after Ruby setup, the checkout must be clean. Changed, staged, or untracked files fail with their paths. Ruby setup installs gems into `vendor/bundle`, writes `.bundle/config`, and creates a lockfile when none is committed; [ignore them](../../README.md#1-configure-your-gem). When they are not ignored, the error lists the `.gitignore` lines to add. Tracked dependency files are not allowed.
 2. **Validate, prepare, test:** files changed by `prepare` are staged before tests. Publication rejects any later change instead of committing it. Custom bump callbacks wrap edits in `git.stage_changes!`, as in [Detailed Usage](../usage.md#custom-callbacks).
 3. **Checkpoint:** the workflow commits, builds, and tags locally, then uploads [recovery artifacts](#recovery-artifacts). This must succeed before `publish` and `bump`.
 4. **Publish, bump, notify:** any failure stops later steps.
